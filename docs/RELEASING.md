@@ -8,13 +8,15 @@ The durable release workflow is `scripts/build.ps1` plus `scripts/package-releas
 4. Build the installer:
 
 ```powershell
-./scripts/build.ps1 -Output ./artifacts/build-0.1.0
-./scripts/package-release.ps1 -Bundle ./artifacts/build-0.1.0 `
+./scripts/build.ps1 -Output ./artifacts/build-0.1.1
+./scripts/package-release.ps1 -Bundle ./artifacts/build-0.1.1 -Version 0.1.1 `
   -ISCC 'path\to\ISCC.exe' `
   -VCRuntime 'path\to\VC\Redist\MSVC\version\x64\Microsoft.VC145.CRT'
 ```
 
 The package script verifies runtime signatures, rejects personal state/cache/model files, compiles the explicit directory allowlist and writes `SHA256SUMS.txt`. Include the compiler's complete `license.txt` as `licenses/Inno-Setup-LICENSE.txt` in the source before building. Review every added source and distribution file, including third-party notices. Public package fixtures are not user credentials.
+
+The denylist also excludes listening outboxes/ledgers and their temporary copies, plus `portable.mode`. Audit the installed payload before its first launch, then compare each shipped file's SHA-256 with the clean bundle. Keep anonymous startup, synthetic playback and any authorized private-account verification in separate data directories. Never publish live account snapshots or personal statistics in release notes or Git history. Upload only the installer and `SHA256SUMS.txt`, not a whole artifacts directory. Tag the exact tested build source commit, and identify subsequent documentation-only updates separately.
 
 5. Inspect the installer visually. Test install, anonymous startup, synthetic playback and timer persistence with a dedicated `CLEARTONE_DATA` directory and service port. `/TESTINSTALL=1` suppresses shortcuts for a test install. Use a new install directory. Test upgrade and uninstall, including preservation of synthetic records. Never point the tests at real account data.
 6. Record exact validation and limitations in `docs/VALIDATION.md`. Create a Git tag and a draft GitHub Release for that commit. Upload the installer and checksums, compare asset hashes, then publish. Stop publication on any build/test/data-audit failure.

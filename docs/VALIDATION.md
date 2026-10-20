@@ -36,7 +36,19 @@ Validated on Windows x64, 2026-10-20.
 - Rechecked after graceful close and normal-mode restart: recent-play timestamp and weekly count were unchanged, and no second report appeared in the ledger. The lifetime total still had not changed roughly two minutes after submission. Restored active study timing, verified the encrypted account hash remained identical, and confirmed installed native bytes matched the tested build. No new playback errors were logged.
 - Installer validation for v0.1.1 is recorded separately below. Future product planning is documentation only.
 
-## General limits
+## v0.1.1 installer
+
+- Built from source commit `3f82706226d7c9c9cac962225b13d990c48e9a89` into a new bundle, without using a personal installation as input. Later roadmap/release-validation edits are documentation only. The `v0.1.1` tag identifies this tested build source.
+- Passed the core regression suite and all five Node service/listening tests. Rechecked npm advisories: the same existing node-forge signature-verification advisory remains documented in SECURITY.md. NuGet advisory retrieval emitted NU1900 during the core run, so that advisory refresh is unverified.
+- Built with the existing signed Inno Setup compiler and signature-checked Microsoft CRT. Installer styling is unchanged from the inspected v0.1.0 design.
+- Installed into a fresh isolated directory with test shortcuts disabled. Compared SHA-256 hashes for all 5,454 shipped files with the clean bundle. Found zero private state/account/listening-ledger/cache files before startup.
+- Launched with an empty data directory, independent service port, nonexistent `DOTNET_ROOT`, and Windows-only PATH. Confirmed a responsive native window, signed-out status, zero study time, and no account vault.
+- In a second isolated data directory, played generated 44.1 kHz PCM and verified pause/seek accounting, lyric browsing/follow, and synthetic study checkpointing. No listening report was submitted for the synthetic local audio. No new errors were logged.
+- Gracefully closed the test app, upgraded that isolated installation, and uninstalled it. Exact hashes confirmed the external synthetic study state was retained. An untracked synthetic record inside the test installation was also preserved.
+- Installer: `ClearTone-0.1.1-win-x64-Setup.exe`, 117,058,323 bytes. SHA-256: `52563dc5db4c6be719f4ccb3582d9534849ccca89b844b83d9fbd3625a7035c0`.
+- This release-validation run did not replace or restart the personal installation. Future roadmap features were not deployed, and no private account test was repeated for packaging.
+
+## General validation limits
 
 This is not a clean-OS installation test. Build tools were already installed. The full optional Python/model environment was not downloaded anew for this release. Real QR login, all third-party songs, every Bilibili video and every network region are not covered by these tests. Platform access remains dependent on account permissions and upstream availability.
 
