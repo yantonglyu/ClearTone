@@ -4,11 +4,13 @@ ClearTone's own source is MIT licensed. Dependency licenses apply to their respe
 
 | Component | Use | License / upstream |
 |---|---|---|
-| .NET and Windows App SDK / WinUI | Runtime and native UI | [Microsoft Windows App SDK](https://github.com/microsoft/WindowsAppSDK), MIT and bundled component notices |
+| .NET and Windows App SDK / WinUI | Runtime and native UI | .NET and open-source WinUI code: MIT; distributed Windows App SDK binaries: Microsoft Software License Terms, with complete package notices under `licenses/nuget` in the installer |
 | WinUI template scaffolding | Application and window structure | Microsoft, MIT |
 | Win2D | Canvas rendering | [Microsoft Win2D](https://github.com/microsoft/Win2D), MIT |
 | NAudio 3.3.0 | Playback, DSP and EQ | [NAudio](https://github.com/naudio/NAudio), MIT |
 | Node.js | Local service runtime | [Node.js LICENSE](https://github.com/nodejs/node/blob/main/LICENSE), MIT plus bundled dependencies |
+| Microsoft Visual C++ Runtime | App-local native runtime | Microsoft Distributable Code, see [Visual Studio redistribution list](https://aka.ms/vs/18/redistribution) and [deployment guidance](https://learn.microsoft.com/en-us/cpp/windows/deployment-in-visual-cpp) |
+| Inno Setup 7 | Installer/uninstaller engine | [Inno Setup license](https://github.com/jrsoftware/issrc/blob/main/license.txt), retained in the binary bundle |
 | @neteasecloudmusicapienhanced/api 4.41.1 | NetEase API adapter | [api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced), MIT |
 | Demucs 4.0.1 | Optional vocal separation | [Demucs](https://github.com/facebookresearch/demucs), MIT |
 | Beat This! 1.1.0 | Optional beat/downbeat inference | [Beat This!](https://github.com/CPJKU/beat_this), MIT for code and published weights |

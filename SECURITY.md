@@ -10,4 +10,4 @@ The lockfile overrides `basic-ftp` to 6.2.3, addressing [GHSA-c475-qrg2-pj4r](ht
 
 `npm audit` still flags `node-forge` and its parent API package for [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv), with no patched version available at the time of review. Inspection of the API adapter's crypto helper found RSA public-key encryption, not the affected PKCS#1 signature-verification operation. This is a bounded call-site review, not a claim that all transitive paths are vulnerability-free. Recheck before distributing a new release, and do not add signature-verification use through this dependency without resolving the advisory.
 
-The repository is a source preview. It has not undergone a comprehensive external security audit.
+The first binary release is an early public version. It has not undergone a comprehensive external security audit. App-local Microsoft C++ runtime libraries are shipped with the installer. These copies are updated through ClearTone releases, not automatically by Windows Update. Recheck runtime updates when building each release.
