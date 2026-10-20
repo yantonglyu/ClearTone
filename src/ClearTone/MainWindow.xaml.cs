@@ -14,6 +14,7 @@ public sealed partial class MainWindow : Window
 {
     public bool IsVisibleForAnimation {get;private set;}=true;
     bool fullscreen;
+    bool closing,closeReady;
     public void ToggleFullscreen(){fullscreen=!fullscreen;AppWindow.SetPresenter(fullscreen?Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen:Microsoft.UI.Windowing.AppWindowPresenterKind.Default);}
     public MainWindow()
     {
@@ -31,6 +32,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1440,960));
         Activated+=(_,e)=>{(RootFrame.Content as MainPage)?.VisibilityChanged(e.WindowActivationState!=WindowActivationState.Deactivated);};
         AppWindow.Changed+=(_,_)=>{IsVisibleForAnimation=AppWindow.IsVisible&&!(AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter p&&p.State==Microsoft.UI.Windowing.OverlappedPresenterState.Minimized);(RootFrame.Content as MainPage)?.RefreshVisibility();};
+        AppWindow.Closing+=async(_,e)=>{if(closeReady)return;e.Cancel=true;if(closing)return;closing=true;try{if(RootFrame.Content is MainPage page)await page.PrepareClose();}finally{closeReady=true;Close();}};
         Closed+=(_,_)=>{(RootFrame.Content as MainPage)?.Close();};
     }
 }

@@ -27,7 +27,7 @@ const anonymous=path.join(require('node:os').tmpdir(),'anonymous_token');
 if(!fs.existsSync(anonymous))fs.writeFileSync(anonymous,'',{flag:'wx'});
 const request=require(path.join(lib,'util/request'));
 const modules={};
-for(const name of ['login_qr_key','login_qr_create','login_qr_check','login_status','user_playlist','playlist_detail','song_detail','song_url_v1','lyric','recommend_songs','recommend_resource','likelist','like','playlist_tracks'])modules[name]=require(path.join(lib,'module',name));
+for(const name of ['login_qr_key','login_qr_create','login_qr_check','login_status','user_playlist','playlist_detail','song_detail','song_url_v1','lyric','recommend_songs','recommend_resource','likelist','like','playlist_tracks','scrobble'])modules[name]=require(path.join(lib,'module',name));
 let cookies={},profile=null,qr=null,generation=0;
 const media=new Map();
 function dpapi(bytes,mode){return Buffer.from(execFileSync('powershell.exe',['-NoProfile','-File',path.join(__dirname,'dpapi.ps1'),'-Mode',mode],{input:Buffer.from(bytes).toString('base64'),encoding:'utf8',windowsHide:true,timeout:10000,stdio:['pipe','pipe','pipe']}).trim(),'base64')}
@@ -39,6 +39,7 @@ function identifier(value){if(!/^\d{1,20}$/.test(String(value)))throw Error('Inv
 function safeImage(src){try{const u=new URL(src);return u.protocol==='https:'||u.protocol==='http:'?u.href.replace(/^http:/,'https:'):''}catch(_){return ''}}
 async function status(){if(!cookies.MUSIC_U){profile=null;return {loggedIn:false}}const result=await call('login_status');const data=result.data||result;if(!data.profile?.userId){profile=null;cookies={};return {loggedIn:false,expired:true}}profile={id:data.profile.userId,name:data.profile.nickname,avatar:safeImage(data.profile.avatarUrl)};return {loggedIn:true,profile}}
 async function requireLogin(){if(!profile){const s=await status();if(!s.loggedIn){const e=Error('请先扫码登录网易云。');e.status=401;throw e}}}
+const listeningSync=require('./listening-sync.cjs')({directory:accountDir,call,requireLogin,getProfile:()=>profile});
 function song(item){return {name:item.name,artist:(item.ar||item.artists||[]).map(a=>a.name).join(' / '),cover:safeImage((item.al||item.album)?.picUrl),url:base+'/media?id='+item.id+'&token='+token,lrc:base+'/lyrics?id='+item.id+'&token='+token,type:'netease',netEaseId:String(item.id),fullDuration:Number(item.dt||item.duration||0)/1000}}
 async function resolveMedia(id){const existing=media.get(id);if(existing&&existing.expires>Date.now())return existing;const body=await call('song_url_v1',{id,level:'standard',crypto:'eapi'});const data=body.data?.[0];if(!data)throw Error('音源暂不可用');const result={url:data.url,trial:!!data.freeTrialInfo,trialSeconds:data.freeTrialInfo?(data.freeTrialInfo.end-data.freeTrialInfo.start):null,available:!!data.url,expires:Date.now()+Math.max(10,Math.min(Number(data.expi)||120,120)-5)*1000};media.set(id,result);return result}
 function reply(res,status,body,type='application/json; charset=utf-8'){res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(type.startsWith('application/json')?JSON.stringify(body):body)}
@@ -68,6 +69,7 @@ async function handle(req,res){
   if(songLibrary.routes.has(url.pathname))return reply(res,200,await songLibrary.handle(url.pathname,input,{call,requireLogin,getProfile:()=>profile}));
   switch(url.pathname){
    case '/api/status':return reply(res,200,await status());
+   case '/api/listening-report':return reply(res,200,await listeningSync.report(input));
    case '/api/qr':{
     const result=await call('login_qr_key');const key=result.data?.unikey||result.unikey;if(!key)throw Error('二维码暂不可用，请稍后重试');
     const image=await call('login_qr_create',{key,qrimg:true});qr={key,expires:Date.now()+180000};return reply(res,200,{image:image.data.qrimg,expires:qr.expires});

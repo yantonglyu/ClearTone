@@ -41,7 +41,7 @@ public sealed class AppState
 public static class Storage
 {
     public static readonly string Root=Environment.GetEnvironmentVariable("CLEARTONE_HOME")??Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,".."));
-    public static string Data=>Environment.GetEnvironmentVariable("CLEARTONE_DATA")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ClearTone");
+    public static string Data=>Environment.GetEnvironmentVariable("CLEARTONE_DATA")??(File.Exists(Path.Combine(Root,"portable.mode"))?Path.Combine(Root,"data"):Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ClearTone"));
     public static JsonSerializerOptions Json=new(){PropertyNameCaseInsensitive=true,WriteIndented=true};
     public static string StatePath=>Path.Combine(Data,"state.json");
     public static AppState Load()

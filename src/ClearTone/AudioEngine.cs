@@ -6,6 +6,9 @@ namespace ClearTone;
 public sealed class AudioEngine : IDisposable
 {
     WaveStream? reader;WasapiPlayer? output;AudioTap? tap;readonly object gate=new();int generation;
+    ListeningCounter listening=new();
+    public double PlayedSeconds {get{lock(gate){SampleListening();return listening.Seconds;}}}
+    void SampleListening(){try{if(output!=null&&tap!=null)listening.Sample(output.GetPosition()/(double)output.OutputWaveFormat.AverageBytesPerSecond,tap.SuppliedSeconds,System.Diagnostics.Stopwatch.GetTimestamp()/(double)System.Diagnostics.Stopwatch.Frequency,Playing);}catch{/* Device loss must not interrupt playback or study state. */}}
     public event Action? Ended;
     public bool Playing=>output?.PlaybackState==PlaybackState.Playing;
     public double Duration=>reader?.TotalTime.TotalSeconds??0;
@@ -16,15 +19,15 @@ public sealed class AudioEngine : IDisposable
         var next=await Task.Run<WaveStream>(()=>new MediaFoundationReader(url));
         lock(gate){
             if(current!=generation){next.Dispose();return;}
-            Release();reader=next;tap=new AudioTap(next.ToSampleProvider());tap.SetEq(state.Eq,state.Gains);
+            Release();listening=new();reader=next;tap=new AudioTap(next.ToSampleProvider());tap.SetEq(state.Eq,state.Gains);
             output=new WasapiPlayerBuilder().WithSharedMode().WithEventSync().WithLatency(100).Build();
             output.Init(tap);output.Volume=(float)state.Volume;
             output.PlaybackStopped+=(_,e)=>{if(e.Exception==null&&Duration>0&&Position>=Duration-.3)Ended?.Invoke();};
         }
     }
-    public void Play()=>output?.Play();
-    public void Pause()=>output?.Pause();
-    public void Seek(double seconds){lock(gate){if(reader!=null){bool playing=Playing;output?.Pause();reader.CurrentTime=TimeSpan.FromSeconds(Math.Clamp(seconds,0,Duration));if(playing)output?.Play();}}}
+    public void Play(){lock(gate){SampleListening();output?.Play();SampleListening();}}
+    public void Pause(){lock(gate){SampleListening();output?.Pause();SampleListening();}}
+    public void Seek(double seconds){lock(gate){if(reader!=null){bool playing=Playing;Pause();reader.CurrentTime=TimeSpan.FromSeconds(Math.Clamp(seconds,0,Duration));if(playing)Play();}}}
     public void Volume(double value){if(output!=null)output.Volume=(float)Math.Clamp(value,0,1);}
     public void Eq(bool enabled,double[] gains)=>tap?.SetEq(enabled,gains);
     public float[] Spectrum()=>tap?.Spectrum()??new float[48];
@@ -34,6 +37,7 @@ public sealed class AudioEngine : IDisposable
 public sealed class AudioTap:ISampleProvider
 {
     readonly ISampleProvider source;readonly float[] ring=new float[4096];int write;readonly object ringGate=new();
+    long supplied;public double SuppliedSeconds=>Interlocked.Read(ref supplied)/(double)(WaveFormat.SampleRate*WaveFormat.Channels);
     BiQuadFilter[][]? filters;float preamp=1;
     readonly Complex[] fft=new Complex[4096];readonly float[] bars=new float[48];
     static readonly float[] hann=Enumerable.Range(0,4096).Select(i=>(float)(.5-.5*Math.Cos(2*Math.PI*i/4095))).ToArray();
@@ -57,7 +61,7 @@ public sealed class AudioTap:ISampleProvider
                 ring[write]=mono/channels;write=(write+1)%ring.Length;
             }
         }
-        return n;
+        Interlocked.Add(ref supplied,n);return n;
     }
     public float[] Spectrum(){
         lock(ringGate)for(int i=0;i<4096;i++){fft[i].X=ring[(write+i)%4096]*hann[i];fft[i].Y=0;}

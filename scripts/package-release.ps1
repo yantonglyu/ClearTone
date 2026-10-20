@@ -3,7 +3,7 @@ param(
   [Parameter(Mandatory=$true)][string]$ISCC,
   [Parameter(Mandatory=$true)][string]$VCRuntime,
   [string]$ReleaseDir=(Join-Path $PSScriptRoot '..\artifacts\release'),
-  [string]$Version='0.1.0'
+  [string]$Version='0.1.1'
 )
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot -Parent
@@ -18,12 +18,12 @@ Get-ChildItem -LiteralPath $VCRuntime -Filter '*.dll' | ForEach-Object {
   Copy-Item -LiteralPath $_.FullName -Destination "$Bundle\runtime" -Force
 }
 # Deny personal runtime state everywhere, including inside unexpected subfolders.
-$forbidden=@('state.json','state.json.bak','state.json.tmp','account.dpapi','analysis-config.json','migration.json','control.json','diagnostics.json','errors.log','.env')
+$forbidden=@('state.json','state.json.bak','state.json.tmp','account.dpapi','analysis-config.json','migration.json','control.json','diagnostics.json','errors.log','.env','listening-outbox.json','listening-ledger.json','portable.mode')
 $files=Get-ChildItem -LiteralPath $Bundle -Recurse -File
 foreach($file in $files){
   $relative=$file.FullName.Substring($Bundle.Length+1)
   $vendor=$relative.StartsWith('service\node_modules\')
-  if($file.Name -in $forbidden -or $file.Name -like 'account.dpapi*' -or
+  if($file.Name -in $forbidden -or $file.Name -like 'account.dpapi*' -or $file.Name -like 'listening-*.json*' -or
     (!$vendor -and $relative -match '(^|\\)(data|smoke-data|analysis-cache|bili-audio|analysis-models|analysis-runtime|\.git)(\\|$)') -or
     $file.Extension -in @('.pdb','.wav','.mp3','.flac','.pth','.pt','.ckpt')){throw "Private or development file in bundle: $relative"}
 }

@@ -16,6 +16,9 @@ verification/
 **/state.json*
 **/migration.json
 **/account.dpapi*
+**/listening-outbox.json*
+**/listening-ledger.json*
+portable.mode
 **/analysis-cache/
 **/bili-audio/
 **/control.json

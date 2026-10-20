@@ -26,7 +26,17 @@ Validated on Windows x64, 2026-10-20.
 - Uninstalled the test application. Verified that its executable was removed and both external synthetic study state and an untracked synthetic record inside the test install directory remained unchanged/preserved.
 - The existing personal installation was not replaced, restarted or migrated. The installer and integration checks used only separate test paths and generated audio.
 
-## Limits
+## Listening sync (v0.1.1)
+
+- Passed device-clock accounting checks for pause/resume, seek jumps, output reset, decoded-data bounds, and background reads. Passed durable-outbox recovery/account isolation and local-service concurrency/restart deduplication tests. Ambiguous submissions are not retried. A damaged ledger prevents reports without stopping the service.
+- Published and ran the native update. Synthetic 44.1 kHz playback verified that pause and seeking do not add listening time. Lyric drag/follow and study persistence checks still passed.
+- With the account owner's explicit permission, backed up and updated a personal installation. A fresh pre-install snapshot preserved the exact study total, complete queue and byte-identical encrypted account file. Personal data and live evidence remain outside the repository and release assets.
+- Performed authorized real playback interspersed with a pause and forward seek. Pause and seek added zero measured seconds, and only one completed session was submitted. Study timing continued throughout playback and pause. No historical listening was backfilled.
+- Read-only NetEase checks confirmed the item appeared first in recent history, its weekly play count increased once, and daily/weekly minute totals changed. The separate lifetime-total endpoint did not change immediately. These are distinct statistics, not a guarantee that every server aggregate updates at the same time. No account identifiers, song identifiers or personal history are included in this report.
+- Rechecked after graceful close and normal-mode restart: recent-play timestamp and weekly count were unchanged, and no second report appeared in the ledger. The lifetime total still had not changed roughly two minutes after submission. Restored active study timing, verified the encrypted account hash remained identical, and confirmed installed native bytes matched the tested build. No new playback errors were logged.
+- Installer validation for v0.1.1 is recorded separately below. Future product planning is documentation only.
+
+## General limits
 
 This is not a clean-OS installation test. Build tools were already installed. The full optional Python/model environment was not downloaded anew for this release. Real QR login, all third-party songs, every Bilibili video and every network region are not covered by these tests. Platform access remains dependent on account permissions and upstream availability.
 
