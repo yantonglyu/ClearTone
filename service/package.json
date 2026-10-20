@@ -1,0 +1,15 @@
+{
+  "name": "cleartone-music-service",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@neteasecloudmusicapienhanced/api": "4.41.1"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "basic-ftp": "6.2.3"
+  }
+}
