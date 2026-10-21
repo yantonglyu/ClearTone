@@ -23,6 +23,15 @@ async function cmd(action,extra={}){const id=Date.now().toString();fs.writeFileS
  await cmd('seek',{seconds:8});assert(Math.abs(read().heardSeconds-heard)<.05);
  await cmd('play');await sleep(1200);await cmd('pause');assert(read().heardSeconds>heard+.5&&read().heardSeconds<heard+3);
  const before=read().totalSeconds;await cmd('study');await sleep(2500);await cmd('study');assert(read().totalSeconds>before+1);
+ const rested=read();assert(rested.studyResting&&!rested.studyRunning);assert.equal(rested.studyDisplay,'00:00:00');
+ const phases=new Set();for(let i=0;i<12;i++){await sleep(250);phases.add(read().studyOpacity);}
+ assert(phases.has(.5)&&phases.has(1),'Rest clock blinks without disappearing');
+ assert(read().restSeconds>2&&read().studyDisplay!=='00:00:00');
+ assert.equal(read().totalSeconds,rested.totalSeconds);assert.equal(read().studySeconds,rested.studySeconds);
+ await cmd('study');assert(read().studyRunning&&!read().studyResting);assert.equal(read().studyOpacity,1);assert.equal(read().restSeconds,0);assert(read().studySeconds>=rested.studySeconds);
+ await cmd('seek',{seconds:0});await cmd('play');await wait(d=>d.playing);await cmd('study');const restDuringPlayback=read();await sleep(1200);assert(read().position>restDuringPlayback.position+.5);assert.equal(read().totalSeconds,restDuringPlayback.totalSeconds);
+ await cmd('study-finish');assert.equal(read().studyDisplay,'00:00:00');assert.equal(read().studyOpacity,1);assert.equal(read().restSeconds,0);assert(!read().studyResting&&!read().studyRunning);
+ await cmd('pause');assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'state.json'))).TotalSeconds,read().totalSeconds);
  assert(!fs.existsSync(path.join(dir,'account.dpapi')));
- console.log(JSON.stringify({passed:true,checks:['signed out','synthetic playback','44100 Hz decode','lyric browsing/follow','pause','study checkpoint','rendered listening time excludes pause and seek'],final:read()}));
+ console.log(JSON.stringify({passed:true,checks:['signed out','synthetic playback','44100 Hz decode','lyric browsing/follow','pause','study checkpoint','rest clock and blink','rest excluded from saved total','resume preserves study session','playback continues during rest','finish clears clocks','rendered listening time excludes pause and seek'],final:read()}));
 })().catch(e=>{console.error(e.message);process.exitCode=1});

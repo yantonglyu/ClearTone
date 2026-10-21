@@ -59,12 +59,14 @@ public static class Storage
 }
 public sealed class StudyClock
 {
-    readonly AppState state;readonly Stopwatch watch=new();double session;double savedSession;public bool Resting {get;private set;}
+    readonly AppState state;readonly Stopwatch watch=new(),restWatch=new();double session;double savedSession;public bool Resting {get;private set;}
     public StudyClock(AppState s)=>state=s;
     public bool Running=>watch.IsRunning;
     public double Seconds=>session+watch.Elapsed.TotalSeconds;
-    public void Toggle(){if(Running){session+=watch.Elapsed.TotalSeconds;watch.Reset();Resting=true;}else{watch.Start();Resting=false;}Checkpoint();}
-    public void Finish(){if(Running){session+=watch.Elapsed.TotalSeconds;watch.Reset();}Checkpoint();session=0;savedSession=0;Resting=false;}
+    public double RestSeconds=>restWatch.Elapsed.TotalSeconds;
+    public double DisplaySeconds=>Resting?RestSeconds:Seconds;
+    public void Toggle(){if(Running){session+=watch.Elapsed.TotalSeconds;watch.Reset();restWatch.Restart();Resting=true;}else{restWatch.Reset();watch.Start();Resting=false;}Checkpoint();}
+    public void Finish(){if(Running){session+=watch.Elapsed.TotalSeconds;watch.Reset();}Checkpoint();session=0;savedSession=0;restWatch.Reset();Resting=false;}
     public void Checkpoint(){double now=Seconds;state.TotalSeconds+=Math.Max(0,now-savedSession);savedSession=now;Storage.Save(state);}
     public static string Format(double s){var t=TimeSpan.FromSeconds(Math.Max(0,s));return $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}";}
 }

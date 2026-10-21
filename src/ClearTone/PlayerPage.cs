@@ -37,9 +37,20 @@ public sealed partial class MainPage
     public MainPage(){
         InitializeComponent();study=new StudyClock(state);listening=new(Path.Combine(Storage.Data,"listening-outbox.json"),async r=>{var d=await service.Call("listening-report",r);return d.GetProperty("state").GetString()??"pending";});Build();
         Loaded+=async(_,_)=>{try{await service.Start();ready=true;await LoadAccount();await RefreshQuote();if(state.Queue.Count>0)await LoadTrack(Math.Clamp(state.Index,0,state.Queue.Count-1),false);else if(accountLogged&&(state.Daily||state.PlaylistId.Length>0)){var d=await service.Call(state.Daily?"daily":"playlist",new{id=state.PlaylistId});state.Queue=MusicService.Tracks(d);if(state.Queue.Count>0)await LoadTrack(0,false);}}catch(Exception e){ShowError(e);}uiTimer.Start();saveTimer.Start();};
-        uiTimer.Tick+=(_,_)=>Tick();saveTimer.Tick+=(_,_)=>{if(App.Main?.IsVisibleForAnimation??true){SetText(clockText,DateTime.Now.ToString("HH:mm"));SetText(studyTime,StudyClock.Format(study.Seconds));SetText(studyStatus,study.Running?"正在专注":study.Resting?"休息中":"本次专注");string label=study.Running?"Ⅱ 休息一下":study.Resting?"▷ 继续专注":"▷ 开始专注";if(studyButton.Content as string!=label)studyButton.Content=label;}if(study.Running)study.Checkpoint();_=TestControl();};
+        uiTimer.Tick+=(_,_)=>Tick();saveTimer.Tick+=(_,_)=>{if(App.Main?.IsVisibleForAnimation??true){SetText(clockText,DateTime.Now.ToString("HH:mm"));UpdateStudyDisplay();}if(study.Running)study.Checkpoint();_=TestControl();};
         saveTimer.Tick+=(_,_)=>UpdateListening();
         audio.Ended+=()=>DispatcherQueue.TryEnqueue(()=>_=Next(1));SizeChanged+=(_,_)=>Layout();
+    }
+    void ToggleStudy(){study.Toggle();UpdateStudyDisplay();}
+    void FinishStudy(){study.Finish();UpdateStudyDisplay();}
+    void UpdateStudyDisplay(){
+        SetText(studyTime,StudyClock.Format(study.DisplaySeconds));
+        SetText(studyStatus,study.Running?"正在专注":study.Resting?"休息中":"本次专注");
+        // Reuse the one-second UI tick. Rest never enters the study checkpoint.
+        double opacity=study.Resting&&(long)study.RestSeconds%2==1?.5:1;
+        if(studyTime.Opacity!=opacity)studyTime.Opacity=opacity;
+        string label=study.Running?"Ⅱ 休息一下":study.Resting?"▷ 继续专注":"▷ 开始专注";
+        if(studyButton.Content as string!=label)studyButton.Content=label;
     }
     void Build(){
         foreach(var key in new[]{"SliderTrackValueFill","SliderTrackValueFillPointerOver","SliderTrackValueFillPressed","SliderThumbBackground","SliderThumbBackgroundPointerOver","SliderThumbBackgroundPressed"})Root.Resources[key]=new SolidColorBrush(Color.FromArgb(255,224,219,236));
@@ -71,7 +82,7 @@ public sealed partial class MainPage
         footer.Height=126;footer.Padding=new Thickness(48,24,48,24);footer.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});footer.ColumnDefinitions.Add(new(){Width=GridLength.Auto});footer.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});
         var refresh=Icon("\uE72C","更新一言");refresh.Width=22;refresh.Height=22;refresh.Padding=new Thickness(0);refresh.Opacity=.5;((FontIcon)refresh.Content).FontSize=12;refresh.Click+=async(_,_)=>await RefreshQuote();var qs=Column(quote,Row(quoteSource,refresh));qs.MaxWidth=400;qs.HorizontalAlignment=HorizontalAlignment.Left;qs.VerticalAlignment=VerticalAlignment.Bottom;footer.Children.Add(qs);
         var visual=Column(spectrumCanvas,readings);readings.HorizontalAlignment=HorizontalAlignment.Center;Grid.SetColumn(visual,1);footer.Children.Add(visual);
-        studyButton.Click+=(_,_)=>study.Toggle();studyButton.Height=34;studyButton.Padding=new Thickness(13,0,13,0);studyButton.FontSize=12;studyButton.CornerRadius=new CornerRadius(9);studyButton.Background=new SolidColorBrush(Color.FromArgb(18,255,255,255));studyButton.BorderThickness=new Thickness(0);studyButton.VerticalAlignment=VerticalAlignment.Center;
+        studyButton.Click+=(_,_)=>ToggleStudy();studyButton.Height=34;studyButton.Padding=new Thickness(13,0,13,0);studyButton.FontSize=12;studyButton.CornerRadius=new CornerRadius(9);studyButton.Background=new SolidColorBrush(Color.FromArgb(18,255,255,255));studyButton.BorderThickness=new Thickness(0);studyButton.VerticalAlignment=VerticalAlignment.Center;
         var timer=Column(studyStatus,Row(studyTime,studyButton));timer.Spacing=3;((StackPanel)timer.Children[1]).Spacing=18;timer.HorizontalAlignment=HorizontalAlignment.Right;timer.VerticalAlignment=VerticalAlignment.Bottom;Grid.SetColumn(timer,2);footer.Children.Add(timer);Grid.SetRow(footer,2);layout.Children.Add(footer);
     }
     void Layout(){
@@ -184,7 +195,7 @@ public sealed partial class MainPage
     }catch(Exception e){Storage.Log(e);}}
     bool motionRunning;Vector2 motionSize;
     void SetMotion(){var v=ElementCompositionPreview.GetElementVisual(background);bool run=state.Motion&&(App.Main?.IsVisibleForAnimation??true);var size=new Vector2((float)ActualWidth,(float)ActualHeight);if(run==motionRunning&&size==motionSize)return;motionRunning=run;motionSize=size;v.StopAnimation("Offset");v.Scale=new Vector3(1.18f,1.18f,1);if(!run){v.Offset=new Vector3(-size.X*.06f,-size.Y*.06f,0);return;}var a=v.Compositor.CreateVector3KeyFrameAnimation();a.InsertKeyFrame(0,new Vector3(-size.X*.13f,-size.Y*.03f,0));a.InsertKeyFrame(.5f,new Vector3(-size.X*.015f,-size.Y*.14f,0));a.InsertKeyFrame(1,new Vector3(-size.X*.13f,-size.Y*.03f,0));a.Duration=TimeSpan.FromSeconds(24);a.IterationBehavior=Microsoft.UI.Composition.AnimationIterationBehavior.Forever;v.StartAnimation("Offset",a);}
-    public void VisibilityChanged(bool visible){if(!visible&&state.Strict&&study.Running)study.Toggle();SetMotion();}
+    public void VisibilityChanged(bool visible){if(!visible&&state.Strict&&study.Running)ToggleStudy();SetMotion();}
     void UpdateListening(){try{listening.Checkpoint(audio.PlayedSeconds);if(ready)_=listening.Pump(accountId);}catch(Exception e){Storage.Log(e);}}
     void EndListening(){try{listening.Checkpoint(audio.PlayedSeconds,true);listening.Finish();if(ready)_=listening.Pump(accountId);}catch(Exception e){Storage.Log(e);}}
     public async Task PrepareClose(){audio.Pause();EndListening();try{await listening.Pump(accountId).WaitAsync(TimeSpan.FromSeconds(5));}catch{} }

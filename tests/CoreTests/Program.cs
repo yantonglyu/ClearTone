@@ -16,7 +16,14 @@ var data=Path.Combine(AppContext.BaseDirectory,"isolated-data-"+Guid.NewGuid().T
 var state=Storage.Load();state.TotalSeconds=3600;Storage.Save(state);var clock=new StudyClock(state);
 clock.Toggle();await Task.Delay(250);clock.Checkpoint();double first=state.TotalSeconds;clock.Checkpoint();Assert(state.TotalSeconds-first<.1,"No duplicated checkpoint");
 clock.Toggle();double rest=state.TotalSeconds;await Task.Delay(150);clock.Checkpoint();Assert(Math.Abs(state.TotalSeconds-rest)<.01,"Rest excludes elapsed");
+Assert(clock.Resting&&!clock.Running&&clock.RestSeconds>=.1&&Math.Abs(clock.DisplaySeconds-clock.RestSeconds)<.05,"Rest has its own advancing display");
+double focused=clock.Seconds;await Task.Delay(100);Assert(Math.Abs(clock.Seconds-focused)<.001,"Study session stays frozen during rest");
+clock.Toggle();Assert(clock.Running&&!clock.Resting&&clock.RestSeconds==0&&clock.DisplaySeconds>=focused,"Resume restores the study session");
+await Task.Delay(150);clock.Toggle();Assert(clock.RestSeconds<.1,"Each new rest starts at zero");
 clock.Finish();Assert(state.TotalSeconds>=3600.2&&state.TotalSeconds<3602,"Only actual study delta counted");
+Assert(!clock.Running&&!clock.Resting&&clock.DisplaySeconds==0&&clock.RestSeconds==0,"Finish during rest clears both clocks");
+double finished=state.TotalSeconds;clock.Finish();Assert(state.TotalSeconds==finished,"Repeated finish cannot duplicate study time");
+clock.Toggle();await Task.Delay(100);clock.Finish();Assert(clock.DisplaySeconds==0&&state.TotalSeconds>finished+.05&&state.TotalSeconds<finished+1,"Finish during focus saves only the new session and clears display");
 Assert(Math.Abs(Storage.Load().TotalSeconds-state.TotalSeconds)<.001,"Atomic state readback");
 Console.WriteLine(JsonSerializer.Serialize(new{passed=true,eqCenterRatio=center,eqLowRatio=low,checks=new[]{"native PCM FFT","22050 Hz EQ Nyquist guard","EQ transfer ratios and headroom","multi-timestamp translation alignment","monotonic study accumulation","no double checkpoint","rest excluded","atomic persistence"}}));
 var listening=new ListeningCounter();listening.Sample(0,0,0,true);
