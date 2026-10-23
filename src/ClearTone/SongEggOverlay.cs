@@ -34,6 +34,7 @@ public sealed partial class MainPage {
     }
     void UpdateSongEgg(){
         if(disposed)return;
+        ConsiderLiveFinale();if(IsLiveTrack){eggTimer.Stop();if(eggPopup!=null)eggPopup.IsOpen=false;return;}
         if(eggResolvedVersion!=loadVersion||eggLyricCount!=lyrics.Count||eggDuration!=audio.Duration){
             eggResolvedVersion=loadVersion;eggLyricCount=lyrics.Count;eggDuration=audio.Duration;
             eggCue=current==null?null:eggProfiles.Select(p=>p.Resolve(current,lyrics,audio.Duration)).FirstOrDefault(c=>c!=null);
@@ -65,3 +66,4 @@ public sealed partial class MainPage {
     static Color EggColor(double alpha,byte r,byte g,byte b)=>Color.FromArgb((byte)Math.Clamp(alpha*255,0,255),r,g,b);
     void CloseSongEgg(){eggTimer.Stop();if(eggPopup!=null){eggPopup.IsOpen=false;eggPopup.Child=null;}foreach(var image in eggSnowSprites)image.Dispose();eggSnowSprites.Clear();eggGlow?.Dispose();eggCanvas?.RemoveFromVisualTree();eggCanvas=null;eggPopup=null;}
 }
+

@@ -2,6 +2,7 @@ using ClearTone;
 using NAudio.Wave;
 using System.Text.Json;
 AudioChecks.Run();
+await BackgroundAudioChecks.Run();
 void Assert(bool value,string message){if(!value)throw new Exception(message);}
 double Level(double frequency,bool eq){
     var tap=new AudioTap(new Tone(frequency));tap.SetEq(eq,[0,0,6,0,0]);var samples=new float[44100];tap.Read(samples.AsSpan());return Math.Sqrt(samples.Skip(22050).Select(v=>(double)v*v).Average());
@@ -57,6 +58,13 @@ Assert(PracticeTiming.Range(lines,2,0,0,8).End==8,"Last lyric ends at audio dura
 var track=new Track{Url="test.wav"};var practice=new PracticeDocument();var original=new List<ReadingToken>{new("君の空","きみのそら")};
 practice.Correct(lines[0],original,[new("君の空","そら")]);practice.Save(track);Assert(PracticeDocument.Load(track).Corrections.Count==1,"Reading correction survives restart");Assert(practice.Undo(lines[0])&&practice.Corrections[PracticeDocument.LineKey(lines[0])][0].Reading=="きみのそら","Correction history undo");
 Assert(new Track{NetEaseId="1"}.Key!=new Track{Bvid="BV1111111111"}.Key,"Source identifiers never collide");
+Assert(new Track{NetEaseId="1"}.Key!=new Track{NetEaseMvId="1"}.Key,"Music and MV catalog identifiers never collide");
+Assert(new Track{NetEaseMvId="1"}.IsVideo&&new Track{VideoUrl="test.mp4"}.IsVideo&&!new Track{NetEaseId="1"}.IsVideo,"Video presentation uses explicit source identity");
+var oldShelf=JsonSerializer.Deserialize<MusicShelf>("{\"Tracks\":[],\"Playlists\":[],\"History\":[]}",Storage.Json)!;
+Assert(oldShelf.Artists.Count==0&&oldShelf.FavoriteSort=="added","Existing library receives non-destructive artist defaults");
+oldShelf.Artists.Add(new("123","Poppin'Party","","netease"));oldShelf.FavoriteSort="artist";oldShelf.Save();
+var restoredShelf=MusicShelf.Load();Assert(restoredShelf.Artists.Single().Key=="netease:123"&&restoredShelf.FavoriteSort=="artist","Artist favorites and sorting survive restart");
+Assert(Math.Abs(Storage.Load().TotalSeconds-state.TotalSeconds)<.001,"Library changes preserve study totals");
 Console.WriteLine("Practice persistence and timing checks passed");
 sealed class FiniteTone:ISampleProvider{int sample;public WaveFormat WaveFormat=>WaveFormat.CreateIeeeFloatWaveFormat(44100,1);public int Read(Span<float> buffer){int count=Math.Min(buffer.Length,88200-sample);for(int i=0;i<count;i++)buffer[i]=(float)(.5*Math.Sin(2*Math.PI*440*sample++/44100));return count;}}
 sealed class Tone(double frequency,int rate=44100):ISampleProvider{

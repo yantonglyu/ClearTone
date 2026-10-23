@@ -33,11 +33,13 @@ public sealed partial class MainPage
         var tabButtons=new List<Button>();
         void Select(int index){
             librarySection=index;searchVersion++;
-            for(int i=0;i<tabButtons.Count;i++){var button=tabButtons[i];button.Opacity=i==index?1:.65;button.Foreground=new SolidColorBrush(i==index?Color.FromArgb(255,248,205,220):Color.FromArgb(255,255,245,238));button.BorderBrush=new SolidColorBrush(i==index?Color.FromArgb(235,231,169,186):Color.FromArgb(0,0,0,0));Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button,new[]{"收藏","队列","最近播放","歌单"}[i]+(i==index?"，已选中":""));}
+            for(int i=0;i<tabButtons.Count;i++){var button=tabButtons[i];button.Opacity=i==index?1:.65;button.Foreground=new SolidColorBrush(i==index?Color.FromArgb(255,248,205,220):Color.FromArgb(255,255,245,238));button.BorderBrush=new SolidColorBrush(i==index?Color.FromArgb(235,231,169,186):Color.FromArgb(0,0,0,0));Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button,new[]{"收藏","队列","最近播放","歌单","歌手"}[i]+(i==index?"，已选中":""));}
             if(index==3){ShowLocalPlaylists(content,message,token);return;}
+            if(index==4){ShowSavedArtists(content,message,token);return;}
+            if(index==0){ShowFavorites(content,message,token);return;}
             ShowCatalogTracks(index==0?shelf.Tracks:index==1?state.Queue:shelf.History,new[]{"收藏的音乐","播放队列","最近播放"}[index],content,message,token);
         }
-        for(int i=0;i<4;i++){int index=i;var button=ActionButton(new[]{"收藏","队列","最近","歌单"}[i],()=>Select(index));button.Background=new SolidColorBrush(Color.FromArgb(0,0,0,0));button.CornerRadius=new(0);button.BorderThickness=new(0,0,0,2);button.Padding=new(10,10,10,10);tabButtons.Add(button);tabs.Children.Add(button);}
+        for(int i=0;i<5;i++){int index=i;var button=ActionButton(new[]{"收藏","队列","最近","歌单","歌手"}[i],()=>Select(index));button.Background=new SolidColorBrush(Color.FromArgb(0,0,0,0));button.CornerRadius=new(0);button.BorderThickness=new(0,0,0,2);button.Padding=new(10,10,10,10);tabButtons.Add(button);tabs.Children.Add(button);}
         var cloud=Icon("\uE753",accountLogged?"我的网易云":"登录网易云");cloud.Click+=async(_,_)=>{await Library();await LoadAccount();if(!token.IsCancellationRequested)BuildCatalog(false);};
         var add=Icon("\uE710","添加音乐");var addMenu=new MenuFlyout();
         var import=new MenuFlyoutItem{Text="导入本地音乐",Icon=new FontIcon{Glyph="\uE8B5"}};import.Click+=async(_,_)=>await ImportLocal();

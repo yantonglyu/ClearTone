@@ -30,7 +30,22 @@ public sealed partial class MainPage
         Resources["TextControlForegroundFocused"]=new SolidColorBrush(Color.FromArgb(255,255,245,238));
     }
     static TextBox SearchInput(string placeholder){
-        var input=new TextBox{PlaceholderText=placeholder,FontFamily=UiFont,FontSize=13,MinHeight=42,Padding=new(14,9,14,9),CornerRadius=new(12),Background=new SolidColorBrush(Color.FromArgb(16,255,255,255)),BorderThickness=new(0),VerticalContentAlignment=VerticalAlignment.Center};
+        var input=new TextBox{PlaceholderText=placeholder,FontFamily=UiFont,FontSize=13,Height=46,MinHeight=46,Padding=new(14,0,14,0),CornerRadius=new(12),Background=new SolidColorBrush(Color.FromArgb(16,255,255,255)),BorderThickness=new(0),VerticalContentAlignment=VerticalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
+        // WinUI's TextBox template does not bind either of these elements to
+        // VerticalContentAlignment. Align both the placeholder and the editor.
+        input.Loaded+=(_,_)=>{
+            void Center(DependencyObject node){
+                for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);i++){
+                    var child=VisualTreeHelper.GetChild(node,i);
+                    if(child is FrameworkElement element&&element.Name is "ContentElement" or "PlaceholderTextContentPresenter"){
+                        element.VerticalAlignment=VerticalAlignment.Center;
+                        if(element is ScrollViewer editor)editor.VerticalContentAlignment=VerticalAlignment.Center;
+                    }
+                    Center(child);
+                }
+            }
+            Center(input);
+        };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(input,placeholder);return input;
     }
 }

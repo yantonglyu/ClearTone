@@ -59,11 +59,11 @@ public sealed partial class MainPage
         if(openDialog!=null)return;
         using var cancel=new CancellationTokenSource();
         var input=new TextBox{PlaceholderText="粘贴 B 站视频链接或 BV 号",Background=new SolidColorBrush(Windows.UI.Color.FromArgb(20,255,255,255)),BorderThickness=new Thickness(0),CornerRadius=new CornerRadius(9)};
-        var read=new Button{Content="读取音频"};var status=Text("视频标题与 UP 主将作为歌曲信息",12,.55);
+        var read=new Button{Content="读取视频"};var status=Text("读取标题、封面与视频分 P",12,.55);
         var list=new ListView{Height=280,SelectionMode=ListViewSelectionMode.Single,ItemTemplate=TrackTemplate()};
         var playNow=new Button{Content="播放",IsEnabled=false};var append=new Button{Content="加入播放列表",IsEnabled=false};
         List<Track> tracks=[];
-        var d=CreateSheet("B 站音频",Column(input,read,list,Row(playNow,append),status));openDialog=d;
+        var d=CreateSheet("B 站视频",Column(input,read,list,Row(playNow,append),status));openDialog=d;
         d.Closed+=(_,_)=>cancel.Cancel();
         read.Click+=async(_,_)=>{
             read.IsEnabled=false;playNow.IsEnabled=append.IsEnabled=false;status.Text="正在读取视频信息…";
@@ -74,7 +74,7 @@ public sealed partial class MainPage
         playNow.Click+=async(_,_)=>{
             if(list.SelectedItem is not Track t)return;
             int index=state.Queue.FindIndex(x=>x.Bvid==t.Bvid&&x.BiliPage==t.BiliPage);
-            if(index<0){state.Queue.Add(t);index=state.Queue.Count-1;}d.Hide();notice.Text="正在缓冲 B 站音轨…";await LoadTrack(index,true);
+            if(index<0){state.Queue.Add(t);index=state.Queue.Count-1;}d.Hide();notice.Text="正在缓冲 B 站视频…";await LoadTrack(index,true);
         };
         try{await d.ShowAsync();}finally{if(openDialog==d)openDialog=null;}
     }

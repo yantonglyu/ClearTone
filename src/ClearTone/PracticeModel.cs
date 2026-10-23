@@ -57,6 +57,8 @@ public sealed class LocalCollection
 }
 public sealed class MusicShelf
 {
+    public List<SavedArtist> Artists {get;set;}=[];
+    public string FavoriteSort {get;set;}="added";
     public List<Track> Tracks {get;set;}=[];
     public List<LocalCollection> Playlists {get;set;}=[];
     public List<Track> History {get;set;}=[];
@@ -65,4 +67,9 @@ public sealed class MusicShelf
     public void Save(){File.WriteAllText(FileName+".tmp",JsonSerializer.Serialize(this,Storage.Json));File.Move(FileName+".tmp",FileName,true);}
     public void Remember(Track track){History.RemoveAll(t=>t.Key==track.Key);History.Insert(0,track);if(History.Count>200)History.RemoveRange(200,History.Count-200);Save();}
     public void Add(IEnumerable<Track> tracks){var keys=Tracks.Select(t=>t.Key).ToHashSet();Tracks.AddRange(tracks.Where(t=>keys.Add(t.Key)));Save();}
+}
+public sealed record SavedArtist(string Id,string Name,string Cover,string Source="netease",string Description="")
+{
+    [System.Text.Json.Serialization.JsonIgnore] public string Key=>Source+":"+Id;
+    [System.Text.Json.Serialization.JsonIgnore] public string Subtitle=>Description.Length>0?Description:Source=="netease"?"网易云歌手":"B 站 UP 主";
 }

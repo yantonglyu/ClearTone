@@ -11,7 +11,7 @@ try { & $npm ci --ignore-scripts; if($LASTEXITCODE -ne 0){throw 'npm ci failed'}
 if($LASTEXITCODE -ne 0){throw 'Native publish failed'}
 New-Item -ItemType Directory -Path "$Output\service","$Output\runtime","$Output\analysis" -Force|Out-Null
 # Explicit inputs only. Never package the developer's accounts or caches.
-foreach($name in @('server.cjs','native-track.cjs','search-catalog.cjs','word-lyrics.cjs','playlist-songs.cjs','practice.cjs','practice-worker.cjs','song-library.cjs','listening-sync.cjs','analysis-jobs.cjs','audio-format.cjs','dpapi.ps1','package.json','package-lock.json')){Copy-Item -LiteralPath "$repo\service\$name" -Destination "$Output\service" -Force}
+foreach($name in @('server.cjs','native-track.cjs','search-catalog.cjs','artist-catalog.cjs','video-catalog.cjs','bili-stream.cjs','word-lyrics.cjs','playlist-songs.cjs','practice.cjs','practice-worker.cjs','song-library.cjs','listening-sync.cjs','analysis-jobs.cjs','audio-format.cjs','dpapi.ps1','package.json','package-lock.json')){Copy-Item -LiteralPath "$repo\service\$name" -Destination "$Output\service" -Force}
 Copy-Item -LiteralPath "$repo\service\node_modules" -Destination "$Output\service" -Recurse -Force
 Get-ChildItem "$repo\analysis" -File|Copy-Item -Destination "$Output\analysis" -Force
 Copy-Item -LiteralPath $node -Destination "$Output\runtime\node.exe" -Force

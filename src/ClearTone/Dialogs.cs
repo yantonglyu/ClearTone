@@ -34,7 +34,7 @@ public sealed partial class MainPage
     }
     async Task Library(){
         if(openDialog!=null)return;
-        var content=new StackPanel{Spacing=12,MaxWidth=500};var message=Text("",12,.65);
+        var content=new StackPanel{Spacing=12,HorizontalAlignment=HorizontalAlignment.Stretch};var message=Text("",12,.65);
         var d=CreateSheet("音乐库",content);openDialog=d;
         using var cancel=new CancellationTokenSource();var token=cancel.Token;
         async Task ShowTracks(PlaylistItem item,bool daily=false){
@@ -49,7 +49,7 @@ public sealed partial class MainPage
         async Task ShowPlaylists(bool recommended){
             content.Children.Clear();var mine=new Button{Content="我的歌单"};var rec=new Button{Content="为你推荐"};mine.Click+=async(_,_)=>await ShowPlaylists(false);rec.Click+=async(_,_)=>await ShowPlaylists(true);var bili=new Button{Content="B 站音频"};bili.Click+=(_,_)=>{d.Hide();_=BiliLibrary();};content.Children.Add(Row(mine,rec,bili));
             if(recommended){var daily=new Button{Content="每日推荐"};daily.Click+=async(_,_)=>await ShowTracks(new("","每日推荐"),true);content.Children.Add(daily);}
-            var list=new ListView{Height=320,ItemTemplate=PlaylistTemplate(),SelectionMode=ListViewSelectionMode.None,IsItemClickEnabled=true};content.Children.Add(list);list.ItemClick+=async(_,e)=>await ShowTracks((PlaylistItem)e.ClickedItem);
+            var list=ArtworkList();list.Height=320;content.Children.Add(list);list.ItemClick+=async(_,e)=>await ShowTracks((PlaylistItem)e.ClickedItem);
             var more=new Button{Content="加载更多"};int offset=0;
             async Task Load(){try{var data=await service.Call(recommended?"recommendations":"playlists",new{offset},token);foreach(var item in data.GetProperty("items").EnumerateArray())list.Items.Add(ReadPlaylist(item));offset+=data.GetProperty("items").GetArrayLength();more.Visibility=data.GetProperty("more").GetBoolean()?Visibility.Visible:Visibility.Collapsed;message.Text="";}catch(OperationCanceledException){}catch(Exception e){message.Text=e.Message;}}
             more.Click+=async(_,_)=>await Load();content.Children.Add(more);var logout=new Button{Content="退出登录"};logout.Click+=async(_,_)=>{try{EndListening();await listening.Pump(accountId);await service.Call("logout");accountLogged=false;accountId="";d.Hide();}catch(Exception e){message.Text=e.Message;}};content.Children.Add(logout);content.Children.Add(message);await Load();
@@ -71,8 +71,8 @@ public sealed partial class MainPage
             if(index==0){
                 Heading("声音","选择输出设备，调整常用音色。");
                 var devices=AudioEngine.GetOutputDevices();int selected=devices.ToList().FindIndex(d=>d.Id==state.OutputDeviceId);var outputMessage=Text("",11,.6);
-                var device=Choice("输出设备",devices.Select(d=>d.Name).ToArray(),Math.Max(0,selected),i=>{try{audio.SelectOutput(devices[i].Id,state.ExclusiveOutput);state.OutputDeviceId=devices[i].Id;Storage.Save(state);}catch(Exception e){ShowError(e);}Section(0);});device.MaxWidth=340;device.HorizontalAlignment=HorizontalAlignment.Stretch;detail.Children.Add(device);
-                var mode=Choice("输出方式",["日常 · WASAPI 共享","WASAPI 独占"],state.ExclusiveOutput?1:0,i=>{try{audio.SelectOutput(state.OutputDeviceId,i==1);state.ExclusiveOutput=i==1;Storage.Save(state);}catch(Exception e){ShowError(e);}Section(0);});detail.Children.Add(mode);
+                var device=Choice("输出设备",devices.Select(d=>d.Name).ToArray(),Math.Max(0,selected),async i=>{try{await audio.SelectOutput(devices[i].Id,state.ExclusiveOutput);state.OutputDeviceId=devices[i].Id;Storage.Save(state);}catch(Exception e){ShowError(e);}if(!disposed)Section(0);});device.MaxWidth=340;device.HorizontalAlignment=HorizontalAlignment.Stretch;detail.Children.Add(device);
+                var mode=Choice("输出方式",["日常 · WASAPI 共享","WASAPI 独占"],state.ExclusiveOutput?1:0,async i=>{try{await audio.SelectOutput(state.OutputDeviceId,i==1);state.ExclusiveOutput=i==1;Storage.Save(state);}catch(Exception e){ShowError(e);}if(!disposed)Section(0);});detail.Children.Add(mode);
                 detail.Children.Add(Text(state.ExclusiveOutput?"独占设备由澄音单独使用。处理链可在下方查看。":"共享输出允许其他应用同时发声。",11,.52));
                 detail.Children.Add(AudioFormatSettings());
                 detail.Children.Add(AudioProcessingSettings());
@@ -91,7 +91,6 @@ public sealed partial class MainPage
             }else if(index==2){
                 Heading("专注与记录");detail.Children.Add(Text(StudyClock.Format(state.TotalSeconds),27));detail.Children.Add(Text("累计学习时间 · 休息不计入",11,.55));
                 detail.Children.Add(SettingSwitch("切到其他窗口时休息",state.Strict,value=>{state.Strict=value;Storage.Save(state);}));
-                detail.Children.Add(ActionButton("结束本次专注",()=>{FinishStudy();Section(2);}));
                 detail.Children.Add(Row(ActionButton("导出记录",ExportStudy),AsyncButton("导入记录",ImportStudy)));
                 detail.Children.Add(Text("导入时保留较大的累计值，重复导入不会叠加时间。",11,.55));
             }else if(index==3){

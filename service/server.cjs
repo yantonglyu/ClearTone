@@ -6,6 +6,7 @@ const {inspect:inspectAudio}=require('./audio-format.cjs');
 const songLibrary=require('./song-library.cjs');
 const playlistSongs=require('./playlist-songs.cjs');
 const nativeTrack=require('./native-track.cjs');
+const mvTrack=require('./video-catalog.cjs');
 const formatCache=new Map();
 async function audioInfo(id){
  const media=await resolveMedia(id);if(!media.url)return {sampleRate:null,format:null};
@@ -25,12 +26,13 @@ const analysis=require('./analysis-jobs.cjs')({directory:accountDir,resolveMedia
 const practice=require('./practice.cjs')(accountDir);
 const cookieFile=path.join(accountDir,'account.dpapi');
 const token=/^[a-f0-9]{64}$/.test(process.env.CLEARTONE_MEDIA_TOKEN||'')?process.env.CLEARTONE_MEDIA_TOKEN:crypto.randomBytes(32).toString('hex');
+const biliStream=require('./bili-stream.cjs')({base,token});
 const lib=path.dirname(require.resolve('@neteasecloudmusicapienhanced/api/package.json'));
 const anonymous=path.join(require('node:os').tmpdir(),'anonymous_token');
 if(!fs.existsSync(anonymous))fs.writeFileSync(anonymous,'',{flag:'wx'});
 const request=require(path.join(lib,'util/request'));
 const modules={};
-for(const name of ['login_qr_key','login_qr_create','login_qr_check','login_status','user_playlist','playlist_detail','song_detail','song_url_v1','lyric','lyric_new','recommend_songs','recommend_resource','likelist','like','playlist_tracks','scrobble','cloudsearch','artist_songs'])modules[name]=require(path.join(lib,'module',name));
+for(const name of ['login_qr_key','login_qr_create','login_qr_check','login_status','user_playlist','playlist_detail','song_detail','song_url_v1','lyric','lyric_new','recommend_songs','recommend_resource','likelist','like','playlist_tracks','scrobble','cloudsearch','artist_songs','mv_detail','mv_url','artist_mv','personalized'])modules[name]=require(path.join(lib,'module',name));
 let cookies={},profile=null,qr=null,generation=0;
 const media=new Map();
 function dpapi(bytes,mode){return Buffer.from(execFileSync('powershell.exe',['-NoProfile','-File',path.join(__dirname,'dpapi.ps1'),'-Mode',mode],{input:Buffer.from(bytes).toString('base64'),encoding:'utf8',windowsHide:true,timeout:10000,stdio:['pipe','pipe','pipe']}).trim(),'base64')}
@@ -43,8 +45,9 @@ function safeImage(src){try{const u=new URL(src);return u.protocol==='https:'||u
 async function status(){if(!cookies.MUSIC_U){profile=null;return {loggedIn:false}}const result=await call('login_status');const data=result.data||result;if(!data.profile?.userId){profile=null;cookies={};return {loggedIn:false,expired:true}}profile={id:data.profile.userId,name:data.profile.nickname,avatar:safeImage(data.profile.avatarUrl)};return {loggedIn:true,profile}}
 async function requireLogin(){if(!profile){const s=await status();if(!s.loggedIn){const e=Error('请先扫码登录网易云。');e.status=401;throw e}}}
 const listeningSync=require('./listening-sync.cjs')({directory:accountDir,call,requireLogin,getProfile:()=>profile});
-function song(item){return {name:item.name,artist:(item.ar||item.artists||[]).map(a=>a.name).join(' / '),cover:safeImage((item.al||item.album)?.picUrl),url:base+'/media?id='+item.id+'&token='+token,lrc:base+'/lyrics?id='+item.id+'&token='+token,type:'netease',netEaseId:String(item.id),fullDuration:Number(item.dt||item.duration||0)/1000}}
+function song(item){return {artistId:String((item.ar||item.artists||[])[0]?.id||''),name:item.name,artist:(item.ar||item.artists||[]).map(a=>a.name).join(' / '),cover:safeImage((item.al||item.album)?.picUrl),url:base+'/media?id='+item.id+'&token='+token,lrc:base+'/lyrics?id='+item.id+'&token='+token,type:'netease',netEaseId:String(item.id),fullDuration:Number(item.dt||item.duration||0)/1000}}
 const searchCatalog=require('./search-catalog.cjs')({call,song});
+const artistCatalog=require('./artist-catalog.cjs')({call,safeImage});
 const wordLyrics=require('./word-lyrics.cjs');
 async function resolveMedia(id){const existing=media.get(id);if(existing&&existing.expires>Date.now())return existing;const body=await call('song_url_v1',{id,level:'standard',crypto:'eapi'});const data=body.data?.[0];if(!data)throw Error('音源暂不可用');const result={url:data.url,trial:!!data.freeTrialInfo,trialSeconds:data.freeTrialInfo?(data.freeTrialInfo.end-data.freeTrialInfo.start):null,available:!!data.url,expires:Date.now()+Math.max(10,Math.min(Number(data.expi)||120,120)-5)*1000};media.set(id,result);return result}
 function reply(res,status,body,type='application/json; charset=utf-8'){res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(type.startsWith('application/json')?JSON.stringify(body):body)}
@@ -54,10 +57,11 @@ async function handle(req,res){
  if(url.pathname==='/health')return reply(res,200,{service:'cleartone-service-v1'});
  if(req.headers.origin===origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin')}
  if(req.method==='OPTIONS'){if(req.headers.origin!==origin)return reply(res,403,{});res.setHeader('Access-Control-Allow-Headers','Content-Type, X-ClearTone-Client, Range');res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');return reply(res,204,'','text/plain')}
- const asset=['/media','/lyrics'].includes(url.pathname);
+ const asset=['/media','/lyrics','/bili-media'].includes(url.pathname);
  if(asset){if(url.searchParams.get('token')!==token||!['GET','HEAD'].includes(req.method))return reply(res,403,{error:'Invalid media token'});}
  else if(req.method!=='POST'||req.headers.origin!==origin||req.headers['x-cleartone-client']!=='1')return reply(res,403,{error:'App request required'});
  try{
+  if(asset&&url.pathname==='/bili-media')return await biliStream.serve(req,res,url.searchParams.get('id'));
   if(asset){await requireLogin();const id=identifier(url.searchParams.get('id'));if(url.pathname==='/lyrics'){const body=await call('lyric',{id});return reply(res,200,body.lrc?.lyric||'','text/plain; charset=utf-8')}
    const data=await resolveMedia(id);if(!data.url)return reply(res,403,{error:'当前账号无可用音源，请在网易云查看权限。'});
    const target=new URL(data.url);if(!['http:','https:'].includes(target.protocol))throw Error('Invalid media URL');
@@ -75,6 +79,10 @@ async function handle(req,res){
   switch(url.pathname){
    case '/api/practice-readings':return reply(res,200,await practice.annotate(input.lines));
    case '/api/search':return reply(res,200,await searchCatalog.search(input));
+   case '/api/bili-media':return reply(res,200,biliStream.register(input));
+   case '/api/mv-track':return reply(res,200,await mvTrack(input,{call}));
+   case '/api/artist-mvs':return reply(res,200,await artistCatalog.artistMvs(input));
+   case '/api/discovery-playlists':{const body=await call('personalized',{limit:24});return reply(res,200,{items:(body.result||[]).map(p=>({id:String(p.id),name:p.name,cover:safeImage(p.picUrl),count:p.trackCount,reason:p.copywriter||'推荐歌单'})),more:false})}
    case '/api/artist-tracks':return reply(res,200,await searchCatalog.artistTracks(input));
    case '/api/status':return reply(res,200,await status());
    case '/api/listening-report':return reply(res,200,await listeningSync.report(input));
@@ -112,3 +120,7 @@ async function handle(req,res){
 const server=http.createServer((req,res)=>{handle(req,res).catch(()=>{if(!res.headersSent)reply(res,500,{error:'本地音乐服务暂不可用'});else res.end()})});
 server.requestTimeout=30000;server.headersTimeout=10000;
 server.listen(port,'127.0.0.1',()=>console.log('ClearTone music service ready at '+base));
+
+
+
+

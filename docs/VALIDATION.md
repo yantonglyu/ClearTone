@@ -55,3 +55,14 @@ This is not a clean-OS installation test. Build tools were already installed. Th
 Dependency advisories are documented in [SECURITY.md](../SECURITY.md), including a remaining upstream advisory. A passing functional test is not a comprehensive security audit.
 
 No performance guarantee is made for model inference. No scheduled monitoring is installed by the application or this repository.
+
+## v0.2.0 native media regression (2026-10-23)
+
+- Serial background audio operations keep native network seeks off the UI thread. Fault injection covered blocked I/O, 100 coalesced seeks, bounded recovery, actual heard-time preservation and nonblocking shutdown.
+- Video decode uses a private device and reusable pixel buffers; UI drawing owns its own bitmap. A prior shared-surface candidate produced an access violation and was rejected. Dynamic video rate correction also produced roughly 0.8 s drift and was removed.
+- The final candidate passed three native music/video transition cycles, seeks, paused and hidden rendering checks, artist-animation pause checks and unchanged isolated study/report counters.
+- A real 9,456-second Bilibili video resumed actual frames after seeks to 300, 3,600 and 60 seconds. Observed clock differences were approximately 0.19–0.38 seconds. These short tests do not prove frame-perfect synchronization or long-session stability on other hardware.
+- Core audio, processing, practice, study persistence and listening-outbox tests passed. 42 service/catalog/lyrics tests passed. npm audit still reports the documented two entries for one upstream node-forge advisory. NuGet advisory retrieval returned NU1900 and was not verified.
+- Test accounts were signed out and study/report totals remained zero. No personal record was used as a public fixture.
+- Rapid far-seek, navigation and track cancellation passed with acknowledgments around 0.8–1.6 s. A paused video resumed after more than 10 s. Closing during a final far-seek workload exited the test process. No new Application 1000 crash was observed in that final regression window.
+- The final installer installed into a new isolated directory. All 6,785 payload hashes matched, with no unexpected or private files. Uninstall succeeded and preserved a synthetic study record byte-for-byte. No personal installation was touched by installer validation.

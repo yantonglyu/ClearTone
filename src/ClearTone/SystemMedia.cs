@@ -34,7 +34,7 @@ public sealed partial class MainPage
     }
     void SystemMediaButton(SystemMediaTransportControls sender,SystemMediaTransportControlsButtonPressedEventArgs args){
         DispatcherQueue.TryEnqueue(async()=>{
-            if(disposed||systemMediaBusy)return;systemMediaBusy=true;
+            if(disposed||LiveLocked||systemMediaBusy)return;systemMediaBusy=true;
             try{switch(args.Button){
                 case SystemMediaTransportControlsButton.Play:PlayAudio();break;
                 case SystemMediaTransportControlsButton.Pause:audio.Pause();break;
@@ -44,7 +44,7 @@ public sealed partial class MainPage
         });
     }
     void SystemMediaSeek(SystemMediaTransportControls sender,PlaybackPositionChangeRequestedEventArgs args){
-        DispatcherQueue.TryEnqueue(()=>{if(disposed)return;SeekAudio(args.RequestedPlaybackPosition.TotalSeconds);UpdateSystemMedia();});
+        DispatcherQueue.TryEnqueue(()=>{if(disposed||LiveLocked)return;SeekAudio(args.RequestedPlaybackPosition.TotalSeconds);UpdateSystemMedia();});
     }
     void UpdateSystemMedia(){
         if(systemMedia==null||disposed)return;
@@ -72,5 +72,6 @@ public sealed partial class MainPage
         try{systemMedia.ButtonPressed-=SystemMediaButton;systemMedia.PlaybackPositionChangeRequested-=SystemMediaSeek;systemMedia.PlaybackStatus=MediaPlaybackStatus.Closed;systemMedia.IsEnabled=false;}catch{}systemMedia=null;
     }
 }
+
 
 

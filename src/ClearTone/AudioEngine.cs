@@ -8,11 +8,13 @@ public sealed record AudioOutputDevice(string Id,string Name);
 
 public sealed class AudioEngine : IDisposable
 {
+    internal Func<bool>? CanContinue;
     WaveStream? reader;WasapiPlayer? output;MMDevice? outputDevice;AudioTap? tap;readonly object gate=new();int generation;
     ListeningCounter listening=new();TempoSource? tempo;double tempoPosition;
     float volume=1;static readonly float[] emptySpectrum=new float[48];
     AudioProcessingOptions processing=new();AudioFileMetadata metadata=AudioFileMetadata.Unknown;
     public string OutputDeviceId {get;private set;}="";
+    public string ActiveOutputDeviceId {get{lock(gate){return outputDevice?.ID??"";}}}
     public bool ExclusiveOutput {get;private set;}
     public bool ActiveExclusiveOutput {get;private set;}
     public string OutputNotice {get;private set;}="";
@@ -39,13 +41,18 @@ public sealed class AudioEngine : IDisposable
     public bool Playing=>output?.PlaybackState==PlaybackState.Playing;
     public double Duration=>reader?.TotalTime.TotalSeconds??0;
     public double Position=>tempo!=null&&tempo.Speed!=1?Math.Min(Duration,tempoPosition+tempo.OutputFrames/(double)Math.Max(1,SampleRate)*tempo.Speed):reader?.CurrentTime.TotalSeconds??0;
+    double presentationSource,presentationClock;
+    double OutputClock()=>output==null?0:output.GetPosition()/(double)output.OutputWaveFormat.AverageBytesPerSecond;
+    void AnchorPresentation(){presentationSource=Position;try{presentationClock=OutputClock();}catch{presentationClock=0;}}
+    // A video blend follows samples delivered by the device, not the decoder read-ahead.
+    public double PresentationPosition {get{lock(gate){try{return Math.Clamp(presentationSource+Math.Max(0,OutputClock()-presentationClock)*Speed,0,Duration);}catch{return Position;}}}}
     public int SampleRate=>reader?.WaveFormat.SampleRate??0;
     public async Task Load(string url,AppState state){
         int current=Interlocked.Increment(ref generation);
         var loaded=await Task.Run(()=> (Reader:OpenReader(url),Metadata:AudioFileMetadata.Read(url)));
         var next=loaded.Reader;
         lock(gate){
-            if(current!=generation){next.Dispose();return;}
+            if(current!=generation||CanContinue?.Invoke()==false){next.Dispose();return;}
             Release();listening=new();reader=next;metadata=loaded.Metadata;DecodedFormatDescription=AudioFileMetadata.Describe(next.WaveFormat);tempo=new TempoSource(next.ToSampleProvider());tempoPosition=0;tap=new AudioTap(tempo);tap.SetMetadata(metadata);tap.ConfigureProcessing(processing);tap.SetEq(state.Eq,state.Gains);volume=(float)Math.Clamp(state.Volume,0,1);OutputNotice="";
             // New tracks negotiate their own format inside the fallback boundary. Do not try the saved
             // route against the previous track first: a missing DAC must not block every later song.
@@ -117,16 +124,16 @@ public sealed class AudioEngine : IDisposable
             if(!exclusive)created.Volume=volume;
             OutputFormatDescription=AudioFileMetadata.Describe(created.OutputWaveFormat);
             DeviceMixFormatDescription=AudioFileMetadata.Describe(created.DeviceMixFormat);
-            output=created;outputDevice=device;ActiveExclusiveOutput=exclusive;int current=generation;
+            output=created;outputDevice=device;ActiveExclusiveOutput=exclusive;AnchorPresentation();int current=generation;
             created.PlaybackStopped+=(_,e)=>{
                 if(ReferenceEquals(output,created)&&current==generation&&e.Exception==null&&Duration>0&&Position>=Duration-.3)Ended?.Invoke();
             };
         }catch{created.Dispose();device.Dispose();throw;}
     }
-    public void Play(){lock(gate){SampleListening();output?.Play();SampleListening();}}
+    public void Play(){lock(gate){if(CanContinue?.Invoke()==false)return;SampleListening();output?.Play();SampleListening();}}
     public void Pause(){lock(gate){SampleListening();output?.Pause();SampleListening();}}
-    public void Seek(double seconds){lock(gate){if(reader!=null){bool playing=Playing;Pause();reader.CurrentTime=TimeSpan.FromSeconds(Math.Clamp(seconds,0,Duration));tempoPosition=reader.CurrentTime.TotalSeconds;tempo?.Reset();if(playing)Play();}}}
-    public void SetSpeed(double speed){lock(gate){if(reader==null||tempo==null||Math.Abs(speed-tempo.Speed)<.0001)return;bool playing=Playing;double position=Position;Pause();reader.CurrentTime=TimeSpan.FromSeconds(position);tempoPosition=position;tempo.SetSpeed(speed);if(playing)Play();}}
+    public void Seek(double seconds,Func<bool>? resume=null){lock(gate){if(reader!=null){bool playing=Playing;Pause();reader.CurrentTime=TimeSpan.FromSeconds(Math.Clamp(seconds,0,Duration));tempoPosition=reader.CurrentTime.TotalSeconds;tempo?.Reset();AnchorPresentation();if(resume?.Invoke()??playing)Play();}}}
+    public void SetSpeed(double speed){lock(gate){if(reader==null||tempo==null||Math.Abs(speed-tempo.Speed)<.0001)return;bool playing=Playing;double position=Position;Pause();reader.CurrentTime=TimeSpan.FromSeconds(position);tempoPosition=position;tempo.SetSpeed(speed);AnchorPresentation();if(playing)Play();}}
     public void Volume(double value){lock(gate){volume=(float)Math.Clamp(value,0,1);if(tap!=null)tap.SoftwareVolume=ActiveExclusiveOutput?volume:1;if(output!=null&&!ActiveExclusiveOutput)output.Volume=volume;}}
     public void Eq(bool enabled,double[] gains){lock(gate)tap?.SetEq(enabled,gains);}
     public float[] Spectrum()=>tap?.Spectrum()??emptySpectrum;
@@ -202,3 +209,4 @@ public sealed class AudioTap:ISampleProvider
         }return bars;
     }
 }
+

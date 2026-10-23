@@ -7,8 +7,9 @@ namespace ClearTone;
 
 public record Track
 {
-    [JsonIgnore] public string Key=>NetEaseId.Length>0?"netease:"+NetEaseId:Bvid.Length>0?$"bili:{Bvid}:{BiliPage}":"local:"+Url;
-    [JsonIgnore] public string SourceLabel=>NetEaseId.Length>0?"网易云":Bvid.Length>0?"B 站":"本地";
+    [JsonIgnore] public string Key=>NetEaseMvId.Length>0?"netease-mv:"+NetEaseMvId:NetEaseId.Length>0?"netease:"+NetEaseId:Bvid.Length>0?$"bili:{Bvid}:{BiliPage}":"local:"+Url;
+    [JsonIgnore] public string SourceLabel=>NetEaseMvId.Length>0?"网易云 MV":NetEaseId.Length>0?"网易云":Bvid.Length>0?"B 站":"本地";
+    [JsonIgnore] public bool IsVideo=>Bvid.Length>0||NetEaseMvId.Length>0||VideoUrl.Length>0;
     [JsonIgnore] public string Detail=>Artist+"  ·  "+SourceLabel;
     public string Bvid {get;set;}="";
     public int BiliPage {get;set;}=1;
@@ -19,6 +20,10 @@ public record Track
     public string Url {get;set;}="";
     public string Lrc {get;set;}="";
     public string NetEaseId {get;set;}="";
+    public string NetEaseMvId {get;set;}="";
+    public string ArtistId {get;set;}="";
+    public string VideoUrl {get;set;}="";
+    public bool VideoAdaptive {get;set;}
     public double FullDuration {get;set;}
     public override string ToString()=>Name+"  ·  "+Artist;
 }
@@ -102,11 +107,12 @@ public sealed class MusicService
         return doc;
     }
     public static List<Track> Tracks(JsonElement d)=>JsonSerializer.Deserialize<List<Track>>(d.GetProperty("tracks"),Storage.Json)??[];
-    public async Task<Track> Refresh(Track t){
+    public async Task<Track> Refresh(Track t,CancellationToken token=default){
         // Service media tokens belong to one process lifetime. Never reuse a persisted URL token.
-        if(t.Bvid.Length>0)return await BiliAudio.Resolve(t);
+        if(t.Bvid.Length>0)return await BiliAudio.Resolve(t,token);
+        if(t.NetEaseMvId.Length>0){var mv=await Call("mv-track",new{id=t.NetEaseMvId,metadata=new{name=t.Name,artist=t.Artist,cover=t.Cover,fullDuration=t.FullDuration}},token);return JsonSerializer.Deserialize<Track>(mv.GetProperty("track"),Storage.Json)??t;}
         if(t.NetEaseId.Length==0)return t;
-        var d=await Call("native-track",new{id=t.NetEaseId,metadata=new{name=t.Name,artist=t.Artist,cover=t.Cover,fullDuration=t.FullDuration}});
+        var d=await Call("native-track",new{id=t.NetEaseId,metadata=new{name=t.Name,artist=t.Artist,cover=t.Cover,fullDuration=t.FullDuration}},token);
         return JsonSerializer.Deserialize<Track>(d.GetProperty("track"),Storage.Json)??t;
     }
     public void Stop(){try{if(process is {HasExited:false})process.Kill(true);}catch{}}
@@ -129,3 +135,4 @@ public static partial class Lyrics
         return Parse(main).Select(l=>l with{Translation=Match(a,l.Time),Romanization=Match(b,l.Time)}).ToList();
     }
 }
+
