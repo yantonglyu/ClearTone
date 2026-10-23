@@ -1,0 +1,13 @@
+{
+  "Id": "snow-halation-orange-ocean",
+  "Title": "Snow halation",
+  "Artists": ["μ's", "μ’s", "µ's"],
+  "NetEaseIds": ["28768036"],
+  "Anchor": "届けて",
+  "FallbackSeconds": 190.61,
+  "MinimumDuration": 245,
+  "MaximumDuration": 275,
+  "EndBeforeTrackEnd": 6,
+  "FadeOutSeconds": 12,
+  "Enabled": true
+}

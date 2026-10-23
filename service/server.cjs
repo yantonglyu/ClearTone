@@ -4,6 +4,8 @@ const {execFileSync}=require('node:child_process');
 const {Readable}=require('node:stream');
 const {inspect:inspectAudio}=require('./audio-format.cjs');
 const songLibrary=require('./song-library.cjs');
+const playlistSongs=require('./playlist-songs.cjs');
+const nativeTrack=require('./native-track.cjs');
 const formatCache=new Map();
 async function audioInfo(id){
  const media=await resolveMedia(id);if(!media.url)return {sampleRate:null,format:null};
@@ -20,6 +22,7 @@ const base='http://127.0.0.1:'+port;
 const accountDir=process.env.CLEARTONE_DATA||__dirname;
 fs.mkdirSync(accountDir,{recursive:true});
 const analysis=require('./analysis-jobs.cjs')({directory:accountDir,resolveMedia});
+const practice=require('./practice.cjs')(accountDir);
 const cookieFile=path.join(accountDir,'account.dpapi');
 const token=/^[a-f0-9]{64}$/.test(process.env.CLEARTONE_MEDIA_TOKEN||'')?process.env.CLEARTONE_MEDIA_TOKEN:crypto.randomBytes(32).toString('hex');
 const lib=path.dirname(require.resolve('@neteasecloudmusicapienhanced/api/package.json'));
@@ -27,7 +30,7 @@ const anonymous=path.join(require('node:os').tmpdir(),'anonymous_token');
 if(!fs.existsSync(anonymous))fs.writeFileSync(anonymous,'',{flag:'wx'});
 const request=require(path.join(lib,'util/request'));
 const modules={};
-for(const name of ['login_qr_key','login_qr_create','login_qr_check','login_status','user_playlist','playlist_detail','song_detail','song_url_v1','lyric','recommend_songs','recommend_resource','likelist','like','playlist_tracks','scrobble'])modules[name]=require(path.join(lib,'module',name));
+for(const name of ['login_qr_key','login_qr_create','login_qr_check','login_status','user_playlist','playlist_detail','song_detail','song_url_v1','lyric','lyric_new','recommend_songs','recommend_resource','likelist','like','playlist_tracks','scrobble','cloudsearch','artist_songs'])modules[name]=require(path.join(lib,'module',name));
 let cookies={},profile=null,qr=null,generation=0;
 const media=new Map();
 function dpapi(bytes,mode){return Buffer.from(execFileSync('powershell.exe',['-NoProfile','-File',path.join(__dirname,'dpapi.ps1'),'-Mode',mode],{input:Buffer.from(bytes).toString('base64'),encoding:'utf8',windowsHide:true,timeout:10000,stdio:['pipe','pipe','pipe']}).trim(),'base64')}
@@ -41,6 +44,8 @@ async function status(){if(!cookies.MUSIC_U){profile=null;return {loggedIn:false
 async function requireLogin(){if(!profile){const s=await status();if(!s.loggedIn){const e=Error('请先扫码登录网易云。');e.status=401;throw e}}}
 const listeningSync=require('./listening-sync.cjs')({directory:accountDir,call,requireLogin,getProfile:()=>profile});
 function song(item){return {name:item.name,artist:(item.ar||item.artists||[]).map(a=>a.name).join(' / '),cover:safeImage((item.al||item.album)?.picUrl),url:base+'/media?id='+item.id+'&token='+token,lrc:base+'/lyrics?id='+item.id+'&token='+token,type:'netease',netEaseId:String(item.id),fullDuration:Number(item.dt||item.duration||0)/1000}}
+const searchCatalog=require('./search-catalog.cjs')({call,song});
+const wordLyrics=require('./word-lyrics.cjs');
 async function resolveMedia(id){const existing=media.get(id);if(existing&&existing.expires>Date.now())return existing;const body=await call('song_url_v1',{id,level:'standard',crypto:'eapi'});const data=body.data?.[0];if(!data)throw Error('音源暂不可用');const result={url:data.url,trial:!!data.freeTrialInfo,trialSeconds:data.freeTrialInfo?(data.freeTrialInfo.end-data.freeTrialInfo.start):null,available:!!data.url,expires:Date.now()+Math.max(10,Math.min(Number(data.expi)||120,120)-5)*1000};media.set(id,result);return result}
 function reply(res,status,body,type='application/json; charset=utf-8'){res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(type.startsWith('application/json')?JSON.stringify(body):body)}
 async function handle(req,res){
@@ -64,10 +69,13 @@ async function handle(req,res){
    res.writeHead(upstream.status,headers);if(!upstream.body||req.method==='HEAD')return res.end();
    const stream=Readable.fromWeb(upstream.body);stream.on('error',()=>res.destroy());stream.pipe(res);return;
   }
-  let text='';for await(const chunk of req){text+=chunk;if(text.length>8192)throw Error('Request too large')}
+  let text='';for await(const chunk of req){text+=chunk;if(text.length>262144)throw Error('Request too large')}
   const input=text?JSON.parse(text):{};
   if(songLibrary.routes.has(url.pathname))return reply(res,200,await songLibrary.handle(url.pathname,input,{call,requireLogin,getProfile:()=>profile}));
   switch(url.pathname){
+   case '/api/practice-readings':return reply(res,200,await practice.annotate(input.lines));
+   case '/api/search':return reply(res,200,await searchCatalog.search(input));
+   case '/api/artist-tracks':return reply(res,200,await searchCatalog.artistTracks(input));
    case '/api/status':return reply(res,200,await status());
    case '/api/listening-report':return reply(res,200,await listeningSync.report(input));
    case '/api/qr':{
@@ -87,14 +95,13 @@ async function handle(req,res){
    }
    case '/api/playlist':{
     await requireLogin();const id=identifier(input.id);const detail=await call('playlist_detail',{id});const pl=detail.playlist;if(!pl)throw Error('歌单暂不可用');
-    const ids=(pl.trackIds||[]).map(t=>String(t.id));const songs=[];
-    for(let i=0;i<ids.length;i+=500){const data=await call('song_detail',{ids:ids.slice(i,i+500).join(',')});songs.push(...(data.songs||[]))}
+    const songs=await playlistSongs(pl,call);
     return reply(res,200,{name:pl.name,tracks:songs.map(song)});
    }
    case '/api/daily':{await requireLogin();const body=await call('recommend_songs');const tracks=body.data?.dailySongs||body.recommend;if(!Array.isArray(tracks))throw Error('Daily recommendations unavailable');return reply(res,200,{name:'每日推荐',tracks:tracks.map(song)})}
    case '/api/recommendations':{await requireLogin();const body=await call('recommend_resource');if(!Array.isArray(body.recommend))throw Error('Recommendations unavailable');return reply(res,200,{items:body.recommend.map(p=>({id:String(p.id),name:p.name,cover:safeImage(p.picUrl||p.coverImgUrl),count:p.trackCount,reason:p.copywriter||'为你推荐'})),more:false})}
-   case '/api/lyrics':{const body=await call('lyric',{id:identifier(input.id)});return reply(res,200,{lrc:body.lrc?.lyric||'',translation:body.tlyric?.lyric||'',romanization:body.romalrc?.lyric||''})}
-   case '/api/native-track':{await requireLogin();const id=identifier(input.id);const result=await call('song_detail',{ids:id});if(!result.songs?.length)throw Error('Song unavailable');return reply(res,200,{track:song(result.songs[0])})}
+   case '/api/lyrics':return reply(res,200,await wordLyrics.load(identifier(input.id),call));
+   case '/api/native-track':{await requireLogin();const id=identifier(input.id);return reply(res,200,{track:await nativeTrack(id,input.metadata,{call,song})})}
    case '/api/track':{await requireLogin();const data=await resolveMedia(identifier(input.id));return reply(res,200,{trial:data.trial,trialSeconds:data.trialSeconds,available:data.available})}
    case '/api/analysis':{await requireLogin();return reply(res,200,analysis.status(identifier(input.id),input.queue===true,Number(input.duration)||0))}
    case '/api/audio-info':{await requireLogin();return reply(res,200,await audioInfo(identifier(input.id)))}

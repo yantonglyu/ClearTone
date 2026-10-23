@@ -10,7 +10,38 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
-            <!-- Other app resources here -->
+            <FontFamily x:Key="ClearToneFont">ms-appx:///Assets/Fonts/NotoSansSC.ttf#Noto Sans SC</FontFamily>
+            <Style TargetType="TextBlock"><Setter Property="FontFamily" Value="{StaticResource ClearToneFont}"/></Style>
+            <Style TargetType="TextBox">
+                <Setter Property="FontFamily" Value="{StaticResource ClearToneFont}"/><Setter Property="FontSize" Value="13"/>
+                <Setter Property="CornerRadius" Value="11"/><Setter Property="Padding" Value="12,9"/>
+                <Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="#16FFFFFF"/>
+            </Style>
+            <Style TargetType="ComboBox">
+                <Setter Property="FontFamily" Value="{StaticResource ClearToneFont}"/><Setter Property="FontSize" Value="12"/>
+                <Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="12,8"/>
+                <Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="#16FFFFFF"/>
+            </Style>
+            <Style TargetType="ToggleButton">
+                <Setter Property="FontFamily" Value="{StaticResource ClearToneFont}"/><Setter Property="FontSize" Value="12"/>
+                <Setter Property="CornerRadius" Value="10"/><Setter Property="BorderThickness" Value="0"/>
+            </Style>
+            <Style TargetType="MenuFlyoutItem"><Setter Property="FontFamily" Value="{StaticResource ClearToneFont}"/><Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="12,10"/></Style>
+            <Style TargetType="MenuFlyoutSubItem"><Setter Property="FontFamily" Value="{StaticResource ClearToneFont}"/><Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="12,10"/></Style>
+            <Style TargetType="Button">
+              <Setter Property="FontFamily" Value="{StaticResource ClearToneFont}"/><Setter Property="Foreground" Value="#FFF5EE"/><Setter Property="FontSize" Value="13"/>
+              <Setter Property="Padding" Value="14,9"/><Setter Property="Background" Value="#10FFFFFF"/><Setter Property="CornerRadius" Value="10"/>
+              <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}" BorderThickness="{TemplateBinding BorderThickness}" BorderBrush="{TemplateBinding BorderBrush}">
+                  <VisualStateManager.VisualStateGroups><VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal"/><VisualState x:Name="PointerOver"><VisualState.Setters><Setter Target="Surface.Opacity" Value=".78"/></VisualState.Setters></VisualState>
+                    <VisualState x:Name="Pressed"><VisualState.Setters><Setter Target="Surface.Opacity" Value=".55"/></VisualState.Setters></VisualState>
+                    <VisualState x:Name="Disabled"><VisualState.Setters><Setter Target="Surface.Opacity" Value=".35"/></VisualState.Setters></VisualState>
+                  </VisualStateGroup></VisualStateManager.VisualStateGroups>
+                  <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Foreground="{TemplateBinding Foreground}" FontFamily="{TemplateBinding FontFamily}" FontSize="{TemplateBinding FontSize}" FontWeight="{TemplateBinding FontWeight}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                </Border>
+              </ControlTemplate></Setter.Value></Setter>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

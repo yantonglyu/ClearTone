@@ -7,6 +7,9 @@ namespace ClearTone;
 
 public record Track
 {
+    [JsonIgnore] public string Key=>NetEaseId.Length>0?"netease:"+NetEaseId:Bvid.Length>0?$"bili:{Bvid}:{BiliPage}":"local:"+Url;
+    [JsonIgnore] public string SourceLabel=>NetEaseId.Length>0?"网易云":Bvid.Length>0?"B 站":"本地";
+    [JsonIgnore] public string Detail=>Artist+"  ·  "+SourceLabel;
     public string Bvid {get;set;}="";
     public int BiliPage {get;set;}=1;
     public long BiliCid {get;set;}
@@ -25,9 +28,16 @@ public sealed class AppState
     public double TotalSeconds {get;set;}
     public bool Translation {get;set;}=true;
     public bool Romanization {get;set;}
+    public int LyricReadingMode {get;set;}=-1;
+    public string OutputDeviceId {get;set;}="";
+    public bool ExclusiveOutput {get;set;}
     public bool Motion {get;set;}=true;
     public bool Strict {get;set;}
     public bool Eq {get;set;}
+    public bool DspBypass {get;set;}
+    public double PreampDb {get;set;}
+    public bool PeakProtection {get;set;}=true;
+    public string ReplayGainMode {get;set;}="off";
     public double[] Gains {get;set;}=new double[5];
     public double Volume {get;set;}=.65;
     public bool Shuffle {get;set;}
@@ -55,7 +65,7 @@ public static class Storage
         var tmp=StatePath+".tmp";File.WriteAllText(tmp,JsonSerializer.Serialize(state,Json));
         if(File.Exists(StatePath))File.Replace(tmp,StatePath,StatePath+".bak");else File.Move(tmp,StatePath);
     }
-    public static void Log(Exception e)=>File.AppendAllText(Path.Combine(Data,"errors.log"),DateTimeOffset.Now+" "+e.GetType().Name+": "+e.Message+Environment.NewLine);
+    public static void Log(Exception e)=>File.AppendAllText(Path.Combine(Data,"errors.log"),DateTimeOffset.Now+" "+e.GetType().Name+": "+e.Message+Environment.NewLine+e.StackTrace+Environment.NewLine);
 }
 public sealed class StudyClock
 {
@@ -67,7 +77,7 @@ public sealed class StudyClock
     public double DisplaySeconds=>Resting?RestSeconds:Seconds;
     public void Toggle(){if(Running){session+=watch.Elapsed.TotalSeconds;watch.Reset();restWatch.Restart();Resting=true;}else{restWatch.Reset();watch.Start();Resting=false;}Checkpoint();}
     public void Finish(){if(Running){session+=watch.Elapsed.TotalSeconds;watch.Reset();}Checkpoint();session=0;savedSession=0;restWatch.Reset();Resting=false;}
-    public void Checkpoint(){double now=Seconds;state.TotalSeconds+=Math.Max(0,now-savedSession);savedSession=now;Storage.Save(state);}
+    public void Checkpoint(){double now=Seconds;double delta=Math.Max(0,now-savedSession);if(delta<=0)return;state.TotalSeconds+=delta;savedSession=now;Storage.Save(state);}
     public static string Format(double s){var t=TimeSpan.FromSeconds(Math.Max(0,s));return $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}";}
 }
 public sealed class MusicService
@@ -96,7 +106,7 @@ public sealed class MusicService
         // Service media tokens belong to one process lifetime. Never reuse a persisted URL token.
         if(t.Bvid.Length>0)return await BiliAudio.Resolve(t);
         if(t.NetEaseId.Length==0)return t;
-        var d=await Call("native-track",new{id=t.NetEaseId});
+        var d=await Call("native-track",new{id=t.NetEaseId,metadata=new{name=t.Name,artist=t.Artist,cover=t.Cover,fullDuration=t.FullDuration}});
         return JsonSerializer.Deserialize<Track>(d.GetProperty("track"),Storage.Json)??t;
     }
     public void Stop(){try{if(process is {HasExited:false})process.Kill(true);}catch{}}

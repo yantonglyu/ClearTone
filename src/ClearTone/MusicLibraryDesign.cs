@@ -8,9 +8,11 @@ namespace ClearTone;
 public sealed partial class MainPage
 {
     static UIElement SettingSwitch(string label,bool enabled,Action<bool> changed){
-        var row=new Grid{MinHeight=40};row.Children.Add(Text(label,14,.85));
-        var button=new Button{Content=enabled?"●":"○",Width=52,HorizontalAlignment=HorizontalAlignment.Right};
-        void Paint(){button.Content=enabled?"●":"○";button.Opacity=enabled?1:.45;Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button,label+(enabled?"，已开启":"，已关闭"));}
+        var row=new Grid{MinHeight=40};var caption=Text(label,13,.85);caption.VerticalAlignment=VerticalAlignment.Center;caption.Margin=new(0,0,60,0);row.Children.Add(caption);
+        var thumb=new Border{Width=12,Height=12,CornerRadius=new(6),Background=new SolidColorBrush(Windows.UI.Color.FromArgb(255,255,245,238))};
+        var track=new Grid{Width=28,Height=18};track.Children.Add(thumb);
+        var button=new Button{Content=track,Width=46,Height=28,Padding=new(6,2,6,2),CornerRadius=new(14),HorizontalAlignment=HorizontalAlignment.Right,BorderThickness=new(0)};
+        void Paint(){thumb.HorizontalAlignment=enabled?HorizontalAlignment.Right:HorizontalAlignment.Left;button.Background=new SolidColorBrush(enabled?Windows.UI.Color.FromArgb(170,231,169,186):Windows.UI.Color.FromArgb(25,255,255,255));Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button,label+(enabled?"，已开启":"，已关闭"));}
         Paint();button.Click+=(_,_)=>{enabled=!enabled;Paint();changed(enabled);};row.Children.Add(button);return row;
     }
     MusicSheet CreateSheet(string title,UIElement content){var d=new MusicSheet(Root,title,content);d.Closed+=(_,_)=>{if(openDialog==d)openDialog=null;};return d;}
@@ -24,12 +26,12 @@ public sealed partial class MainPage
           <Image Stretch="UniformToFill"><Image.Source><BitmapImage UriSource="{Binding Cover}" DecodePixelWidth="112"/></Image.Source></Image>
         </Border>
         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="5">
-          <TextBlock Text="{Binding Name}" FontSize="15" Foreground="#F6F4F8" TextTrimming="CharacterEllipsis"/>
-          <TextBlock Text="{Binding SUBTITLE}" FontSize="12" Foreground="#A8B1BD" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="{Binding Name}" FontFamily="FONT" FontSize="15" Foreground="#F6F4F8" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="{Binding SUBTITLE}" FontFamily="FONT" FontSize="12" Foreground="#A8B1BD" TextTrimming="CharacterEllipsis"/>
         </StackPanel>
       </Grid>
     </DataTemplate>
-    """.Replace("SUBTITLE",subtitle));
+    """.Replace("SUBTITLE",subtitle).Replace("FONT",AppFont));
     static PlaylistItem ReadPlaylist(JsonElement item)=>new(item.GetProperty("id").GetString()!,item.GetProperty("name").GetString()!,
         item.TryGetProperty("cover",out var c)?c.GetString()??"":"",
         item.TryGetProperty("count",out var n)?n.ToString()+" 首歌曲":"");
@@ -65,7 +67,7 @@ public sealed partial class MainPage
         d.Closed+=(_,_)=>cancel.Cancel();
         read.Click+=async(_,_)=>{
             read.IsEnabled=false;playNow.IsEnabled=append.IsEnabled=false;status.Text="正在读取视频信息…";
-            try{string art=await RandomAccountCover(cancel.Token);tracks=await BiliAudio.Read(input.Text,art,cancel.Token);list.ItemsSource=tracks;list.SelectedIndex=0;playNow.IsEnabled=append.IsEnabled=tracks.Count>0;status.Text=art.Length>0?"封面来自你的网易云歌曲":"登录网易云并打开歌单后，可使用歌曲封面";}
+            try{string art="";tracks=await BiliAudio.Read(input.Text,art,cancel.Token);list.ItemsSource=tracks;list.SelectedIndex=0;playNow.IsEnabled=append.IsEnabled=tracks.Count>0;status.Text="选择分 P 后播放或加入队列";}
             catch(OperationCanceledException){}catch(Exception e){status.Text=e.Message;}finally{read.IsEnabled=true;}
         };
         append.Click+=(_,_)=>{if(list.SelectedItem is not Track t)return;if(!state.Queue.Any(x=>x.Bvid==t.Bvid&&x.BiliPage==t.BiliPage))state.Queue.Add(t);Storage.Save(state);status.Text="已加入播放列表";};

@@ -41,12 +41,19 @@ public static class BiliAudio
         foreach(var p in data.GetProperty("pages").EnumerateArray())result.Add(new Track{
             Bvid=id,BiliPage=p.GetProperty("page").GetInt32(),BiliCid=p.GetProperty("cid").GetInt64(),
             Name=data.GetProperty("title").GetString()!+(count>1?" · "+p.GetProperty("part").GetString():""),
-            Artist=data.GetProperty("owner").GetProperty("name").GetString()!,Cover=cover,
+            Artist=data.GetProperty("owner").GetProperty("name").GetString()!,Cover=data.TryGetProperty("pic",out var pic)?pic.GetString()?.Replace("http:","https:")??cover:cover,
             FullDuration=p.GetProperty("duration").GetDouble()});
         return result;
     }
     public static async Task<Track> Resolve(Track track){
         Validate(track.Bvid);
+        // Catalogue search supplies a video ID. Resolve its first page lazily when
+        // selected, rather than fetching metadata for every row in search results.
+        if(track.BiliCid<=0){
+            var pages=await Read(track.Bvid,track.Cover);
+            var selected=pages.FirstOrDefault(p=>p.BiliPage==Math.Max(1,track.BiliPage));
+            track=selected??throw new IOException("该视频分 P 暂不可用，请重新搜索或粘贴视频链接");
+        }
         var folder=Path.Combine(Storage.Data,"bili-audio");Directory.CreateDirectory(folder);
         var file=Path.Combine(folder,$"{track.Bvid}-{track.BiliPage}.m4a");
         if(File.Exists(file)&&new FileInfo(file).Length>0)return track with{Url=file};

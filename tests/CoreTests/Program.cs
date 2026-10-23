@@ -1,6 +1,7 @@
 using ClearTone;
 using NAudio.Wave;
 using System.Text.Json;
+AudioChecks.Run();
 void Assert(bool value,string message){if(!value)throw new Exception(message);}
 double Level(double frequency,bool eq){
     var tap=new AudioTap(new Tone(frequency));tap.SetEq(eq,[0,0,6,0,0]);var samples=new float[44100];tap.Read(samples.AsSpan());return Math.Sqrt(samples.Skip(22050).Select(v=>(double)v*v).Average());
@@ -42,6 +43,22 @@ await sync.Pump("7");await sync.Pump("7");Assert(submissions==1,"Completed sessi
 var recovery=new ListeningSync(outbox,_=>throw new IOException());recovery.Begin("7","42","9");recovery.Checkpoint(8,true);
 var restarted=new ListeningSync(outbox,r=>{submissions++;return Task.FromResult("sent");});await restarted.Pump("7");Assert(submissions==2,"Saved real time recovered after exit");
 Console.WriteLine("Listening counter and durable outbox checks passed");
+// Pitch-preserving time stretching: measure duration and zero crossings of a finite sine.
+foreach(double speed in new[]{.5,.75,1d,1.25,1.5}){
+ var stretch=new TempoSource(new FiniteTone());stretch.SetSpeed(speed);var result=new List<float>();var block=new float[2048];int read;
+ while((read=stretch.Read(block.AsSpan()))>0)result.AddRange(block.Take(read));
+ double seconds=result.Count/44100d;Assert(Math.Abs(seconds-2/speed)<.12,"Stretch duration "+speed);
+ var middle=result.Skip(4410).Take(Math.Max(0,result.Count-8820)).ToArray();int crosses=0;for(int i=1;i<middle.Length;i++)if(middle[i-1]<=0&&middle[i]>0)crosses++;
+ double hz=crosses/(middle.Length/44100d);Assert(Math.Abs(hz-440)<5,"Pitch stays 440 Hz "+speed);Console.WriteLine($"Tempo {speed}: {seconds:F3}s, {hz:F2}Hz");
+}
+var lines=Lyrics.Parse("[00:01]君の空\n[00:03]夢を見る\n[00:06]明日");
+var range=PracticeTiming.Range(lines,1,.5,1,8);Assert(range.Start==2.5&&range.End==6.5,"Practice offset and lead-in share source timeline");
+Assert(PracticeTiming.Range(lines,2,0,0,8).End==8,"Last lyric ends at audio duration");
+var track=new Track{Url="test.wav"};var practice=new PracticeDocument();var original=new List<ReadingToken>{new("君の空","きみのそら")};
+practice.Correct(lines[0],original,[new("君の空","そら")]);practice.Save(track);Assert(PracticeDocument.Load(track).Corrections.Count==1,"Reading correction survives restart");Assert(practice.Undo(lines[0])&&practice.Corrections[PracticeDocument.LineKey(lines[0])][0].Reading=="きみのそら","Correction history undo");
+Assert(new Track{NetEaseId="1"}.Key!=new Track{Bvid="BV1111111111"}.Key,"Source identifiers never collide");
+Console.WriteLine("Practice persistence and timing checks passed");
+sealed class FiniteTone:ISampleProvider{int sample;public WaveFormat WaveFormat=>WaveFormat.CreateIeeeFloatWaveFormat(44100,1);public int Read(Span<float> buffer){int count=Math.Min(buffer.Length,88200-sample);for(int i=0;i<count;i++)buffer[i]=(float)(.5*Math.Sin(2*Math.PI*440*sample++/44100));return count;}}
 sealed class Tone(double frequency,int rate=44100):ISampleProvider{
  long sample;public WaveFormat WaveFormat=>WaveFormat.CreateIeeeFloatWaveFormat(rate,1);
  public int Read(Span<float> buffer){for(int i=0;i<buffer.Length;i++)buffer[i]=(float)(.5*Math.Sin(2*Math.PI*frequency*sample++/rate));return buffer.Length;}

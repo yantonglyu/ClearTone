@@ -25,7 +25,7 @@ public sealed partial class MainPage
     }
     void StopLyricAnimation(){if(!lyricRendering)return;CompositionTarget.Rendering-=AnimateLyrics;lyricRendering=false;lyricLastFrame=0;}
     void WakeLyricAnimation(){
-        if(disposed||!(App.Main?.IsVisibleForAnimation??true)||lyricPositions.Count==0){StopLyricAnimation();return;}
+        if(page!="now"||disposed||!(App.Main?.IsVisibleForAnimation??true)||lyricPositions.Count==0){StopLyricAnimation();return;}
         bool browsing=lyricPressed||DateTime.Now<lyricManualUntil;
         var visibility=browsing?Visibility.Visible:Visibility.Collapsed;
         if(follow.Visibility!=visibility)follow.Visibility=visibility;
@@ -53,7 +53,7 @@ public sealed partial class MainPage
         double position=scrollIndex+y-lyricCanvas.ActualHeight*.35;
         int i=lyricPositions.FindLastIndex(p=>p<=position);
         if(i>=0&&i<lyrics.Count&&position<lyricPositions[i]+lyricHeights[i]){
-            audio.Seek(lyrics[i].Time);lyricManualUntil=DateTime.MinValue;
+            SeekAudio(lyrics[i].Time);lyricManualUntil=DateTime.MinValue;
         }
         WakeLyricAnimation();
     }
@@ -68,7 +68,7 @@ public sealed partial class MainPage
         double dt=lyricLastFrame==0?1d/60:(double)(now-lyricLastFrame)/Stopwatch.Frequency;
         if(dt<1d/60-.001)return;
         lyricLastFrame=now;
-        if(disposed||!(App.Main?.IsVisibleForAnimation??true)||lyricPositions.Count==0){StopLyricAnimation();return;}
+        if(page!="now"||disposed||!(App.Main?.IsVisibleForAnimation??true)||lyricPositions.Count==0){StopLyricAnimation();return;}
         bool browsing=lyricPressed||DateTime.Now<lyricManualUntil;
         var visibility=browsing?Visibility.Visible:Visibility.Collapsed;if(follow.Visibility!=visibility)follow.Visibility=visibility;
         if(browsing!=lyricBrowsingVisual){lyricBrowsingVisual=browsing;lyricCanvas.Invalidate();}
@@ -82,3 +82,4 @@ public sealed partial class MainPage
         if(testControl){lyricAnimationFrames++;lyricFrameIntervals.Enqueue(dt*1000);while(lyricFrameIntervals.Count>600)lyricFrameIntervals.Dequeue();}
     }
 }
+

@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@neteasecloudmusicapienhanced/api": "4.41.1"
+    "@neteasecloudmusicapienhanced/api": "4.41.1",
+    "kuromoji": "0.1.2",
+    "wanakana": "5.3.1"
   },
   "license": "MIT",
   "engines": {

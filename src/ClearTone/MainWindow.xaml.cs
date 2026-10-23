@@ -27,8 +27,8 @@ public sealed partial class MainWindow : Window
 
         // Navigate the root frame to the main page on startup.
         RootFrame.Navigate(typeof(MainPage));
-        Title="澄音 · ClearTone";
-        AppTitleBar.Title="澄音 · ClearTone";
+        Title=Environment.GetEnvironmentVariable("CLEARTONE_PREVIEW")=="1"?"澄音 · 播放器预览":"澄音 · ClearTone";
+        AppTitleBar.Title=Title;
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1440,960));
         Activated+=(_,e)=>{(RootFrame.Content as MainPage)?.VisibilityChanged(e.WindowActivationState!=WindowActivationState.Deactivated);};
         AppWindow.Changed+=(_,_)=>{IsVisibleForAnimation=AppWindow.IsVisible&&!(AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter p&&p.State==Microsoft.UI.Windowing.OverlappedPresenterState.Minimized);(RootFrame.Content as MainPage)?.RefreshVisibility();};
