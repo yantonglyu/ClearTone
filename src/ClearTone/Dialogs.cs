@@ -68,11 +68,11 @@ public sealed partial class MainPage
         void Heading(string title,string? description=null){detail.Children.Add(Text(title,20));if(description!=null)detail.Children.Add(Text(description,11,.58));}
         void Section(int index){
             detail.Children.Clear();for(int i=0;i<tabs.Count;i++){tabs[i].Background=new SolidColorBrush(Windows.UI.Color.FromArgb(i==index?(byte)42:(byte)0,231,169,186));tabs[i].Opacity=i==index?1:.65;}
-            if(index==0){
+            if(index==4){Heading("耳返","听见自己的声音，切换页面也能继续。");detail.Children.Add(MonitorSettings());}else if(index==0){
                 Heading("声音","选择输出设备，调整常用音色。");
                 var devices=AudioEngine.GetOutputDevices();int selected=devices.ToList().FindIndex(d=>d.Id==state.OutputDeviceId);var outputMessage=Text("",11,.6);
-                var device=Choice("输出设备",devices.Select(d=>d.Name).ToArray(),Math.Max(0,selected),async i=>{try{await audio.SelectOutput(devices[i].Id,state.ExclusiveOutput);state.OutputDeviceId=devices[i].Id;Storage.Save(state);}catch(Exception e){ShowError(e);}if(!disposed)Section(0);});device.MaxWidth=340;device.HorizontalAlignment=HorizontalAlignment.Stretch;detail.Children.Add(device);
-                var mode=Choice("输出方式",["日常 · WASAPI 共享","WASAPI 独占"],state.ExclusiveOutput?1:0,async i=>{try{await audio.SelectOutput(state.OutputDeviceId,i==1);state.ExclusiveOutput=i==1;Storage.Save(state);}catch(Exception e){ShowError(e);}if(!disposed)Section(0);});detail.Children.Add(mode);
+                var device=Choice("输出设备",devices.Select(d=>d.Name).ToArray(),Math.Max(0,selected),async i=>{try{await microphoneMonitor.Configure(false,"","");await audio.SelectOutput(devices[i].Id,state.ExclusiveOutput);state.OutputDeviceId=devices[i].Id;Storage.Save(state);}catch(Exception e){ShowError(e);}if(!disposed)Section(0);});device.MaxWidth=340;device.HorizontalAlignment=HorizontalAlignment.Stretch;detail.Children.Add(device);
+                var mode=Choice("输出方式",["日常 · WASAPI 共享","WASAPI 独占"],state.ExclusiveOutput?1:0,async i=>{try{await microphoneMonitor.Configure(false,"","");await audio.SelectOutput(state.OutputDeviceId,i==1);state.ExclusiveOutput=i==1;Storage.Save(state);}catch(Exception e){ShowError(e);}if(!disposed)Section(0);});detail.Children.Add(mode);
                 detail.Children.Add(Text(state.ExclusiveOutput?"独占设备由澄音单独使用。处理链可在下方查看。":"共享输出允许其他应用同时发声。",11,.52));
                 detail.Children.Add(AudioFormatSettings());
                 detail.Children.Add(AudioProcessingSettings());
@@ -99,10 +99,11 @@ public sealed partial class MainPage
                 detail.Children.Add(AsyncButton("重新尝试当前歌曲分析",async()=>{analysisReady=false;await Analyze(loadVersion);notice.Text="后台分析状态已刷新";}));
             }
         }
-        string[] names=["声音","外观","专注","音乐"];
+        string[] names=["声音","外观","专注","音乐","耳返"];
         for(int i=0;i<names.Length;i++){int tab=i;var b=ActionButton(names[i],()=>Section(tab));b.HorizontalAlignment=HorizontalAlignment.Stretch;b.HorizontalContentAlignment=HorizontalAlignment.Left;tabs.Add(b);nav.Children.Add(b);}Section(0);await Dialog("设置",layout);
     }
     void ExportStudy(){try{study.Checkpoint();var file=Path.Combine(Storage.Data,"学习记录-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".json");File.WriteAllText(file,JsonSerializer.Serialize(new{format="cleartone-study-v1",totalSeconds=state.TotalSeconds},Storage.Json));notice.Text="已导出到 "+file;}catch(Exception e){ShowError(e);}}
     async Task ImportStudy(){try{var picker=new Windows.Storage.Pickers.FileOpenPicker();WinRT.Interop.InitializeWithWindow.Initialize(picker,WinRT.Interop.WindowNative.GetWindowHandle(App.Main));picker.FileTypeFilter.Add(".json");var file=await picker.PickSingleFileAsync();if(file==null)return;using var data=JsonDocument.Parse(await Windows.Storage.FileIO.ReadTextAsync(file));var r=data.RootElement;if(r.GetProperty("format").GetString()!="cleartone-study-v1")throw new InvalidDataException("不支持的记录格式");double total=r.GetProperty("totalSeconds").GetDouble();if(!double.IsFinite(total)||total<0)throw new InvalidDataException("学习时间无效");FinishStudy();state.TotalSeconds=Math.Max(state.TotalSeconds,total);Storage.Save(state);notice.Text="已合并累计时间";}catch(Exception e){ShowError(e);}}
 }
+
 

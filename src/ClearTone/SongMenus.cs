@@ -25,7 +25,8 @@ public sealed partial class MainPage
         return list;
     }
     sealed class SongMenuBinding {}
-    static DataTemplate SongRowTemplate()=>(DataTemplate)XamlReader.Load("""
+    DataTemplate? songRowTemplate;
+    DataTemplate SongRowTemplate()=>songRowTemplate??=(DataTemplate)XamlReader.Load("""
     <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
       <Grid Padding="2,7" ColumnSpacing="14">
         <Grid.ColumnDefinitions><ColumnDefinition Width="44"/><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
@@ -46,6 +47,10 @@ public sealed partial class MainPage
             item.Click+=async(_,_)=>{try{await action();}catch(Exception e){Report(e.Message);Storage.Log(e);}};flyout.Items.Add(item);return item;
         }
         Add("播放","\uE768",()=>PlaySelection(track));
+        if(track.IsVideo){
+            Add("绑定歌词…","\uE8D2",()=>BindVideoLyrics(track));
+            Add("进入跟唱","\uE720",()=>StartVideoPractice(track));
+        }
         Add("加入播放列表","\uE710",()=>{AppendSelection([track]);Report("已加入播放列表");return Task.CompletedTask;});
         var local=new MenuFlyoutSubItem{Text="收藏到本地歌单",Icon=new FontIcon{Glyph="\uE8F1",FontSize=16}};
         var library=new MenuFlyoutItem{Text="音乐库"};library.Click+=(_,_)=>{shelf.Add([track]);Report("已收藏到音乐库");};local.Items.Add(library);

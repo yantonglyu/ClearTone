@@ -53,7 +53,7 @@ public sealed partial class MainPage
         double position=scrollIndex+y-lyricCanvas.ActualHeight*.35;
         int i=lyricPositions.FindLastIndex(p=>p<=position);
         if(i>=0&&i<lyrics.Count&&position<lyricPositions[i]+lyricHeights[i]){
-            SeekAudio(lyrics[i].Time);lyricManualUntil=DateTime.MinValue;
+            SeekAudio(Math.Clamp(lyrics[i].Time+(current?.IsVideo==true?practiceDocument.Offset:0),0,audio.Duration));lyricManualUntil=DateTime.MinValue;
         }
         WakeLyricAnimation();
     }

@@ -39,8 +39,15 @@ public sealed class PracticeDocument
 public static class PracticeTiming
 {
     public static int Current(IReadOnlyList<Lyric> lines,double offset,double position){
-        for(int i=lines.Count-1;i>=0;i--)if(lines[i].Time+offset<=position)return i;
-        return lines.Count==0?-1:0;
+        return lines.Count==0?-1:Math.Max(0,AtOrBefore(lines,position-offset));
+    }
+    public static int AtOrBefore(IReadOnlyList<Lyric> lines,double time){
+        int low=0,high=lines.Count;
+        while(low<high){
+            int middle=low+(high-low)/2;
+            if(lines[middle].Time<=time)low=middle+1;else high=middle;
+        }
+        return low-1;
     }
     // Positive offset means the words occur later in the media.
     public static (double Start,double End) Range(IReadOnlyList<Lyric> lines,int index,double offset,double lead,double duration){
@@ -55,8 +62,11 @@ public sealed class LocalCollection
     public string Name {get;set;}="我的混合歌单";
     public List<Track> Tracks {get;set;}=[];
 }
+public sealed record BiliFolder(string Id,string Name,string Cover="",string Subtitle="");
 public sealed class MusicShelf
 {
+    public string BiliFavoriteSource {get;set;}="";
+    public List<BiliFolder> BiliFolders {get;set;}=[];
     public List<SavedArtist> Artists {get;set;}=[];
     public string FavoriteSort {get;set;}="added";
     public List<Track> Tracks {get;set;}=[];

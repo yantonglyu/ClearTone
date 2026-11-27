@@ -34,7 +34,7 @@ public sealed partial class MainPage
         void Select(int index){
             librarySection=index;searchVersion++;
             for(int i=0;i<tabButtons.Count;i++){var button=tabButtons[i];button.Opacity=i==index?1:.65;button.Foreground=new SolidColorBrush(i==index?Color.FromArgb(255,248,205,220):Color.FromArgb(255,255,245,238));button.BorderBrush=new SolidColorBrush(i==index?Color.FromArgb(235,231,169,186):Color.FromArgb(0,0,0,0));Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button,new[]{"收藏","队列","最近播放","歌单","歌手"}[i]+(i==index?"，已选中":""));}
-            if(index==3){ShowLocalPlaylists(content,message,token);return;}
+            if(index==3){ShowPlaylistSources(content,message,token);return;}
             if(index==4){ShowSavedArtists(content,message,token);return;}
             if(index==0){ShowFavorites(content,message,token);return;}
             ShowCatalogTracks(index==0?shelf.Tracks:index==1?state.Queue:shelf.History,new[]{"收藏的音乐","播放队列","最近播放"}[index],content,message,token);

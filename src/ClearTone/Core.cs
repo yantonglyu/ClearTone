@@ -36,6 +36,8 @@ public sealed class AppState
     public int LyricReadingMode {get;set;}=-1;
     public string OutputDeviceId {get;set;}="";
     public bool ExclusiveOutput {get;set;}
+    public string MonitorInput {get;set;}="";
+    public double MonitorVolume {get;set;}=.25;
     public bool Motion {get;set;}=true;
     public bool Strict {get;set;}
     public bool Eq {get;set;}

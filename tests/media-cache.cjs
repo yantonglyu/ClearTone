@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('node:assert/strict'),create=require('../service/media-cache.cjs');
+let time=100;const cache=create({limit:3,now:()=>time});
+const active={url:'https://example.invalid/audio',expires:200};
+cache.set('a',active);cache.set('b',{expires:200});cache.set('c',{expires:200});
+assert.equal(cache.get('a'),active);cache.set('d',{expires:200});
+assert.equal(cache.size,3);assert.equal(cache.get('b'),undefined);assert.equal(cache.get('a'),active);
+time=200;cache.prune();assert.equal(cache.size,0);assert.equal(active.url,'https://example.invalid/audio');
+cache.set('expired',{expires:199});assert.equal(cache.size,0);
+for(let i=0;i<10000;i++)cache.set(String(i),{expires:300});assert.equal(cache.size,3);
+cache.clear();assert.equal(cache.size,0);
+console.log('PASS: expiry, bounded LRU, active-value independence, 10,000 entries, logout clear');

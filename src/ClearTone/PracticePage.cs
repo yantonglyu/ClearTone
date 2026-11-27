@@ -30,7 +30,16 @@ public sealed partial class MainPage
         var toolbar=Row(translationToggle,romanToggle,ActionButton("◎ 跟随当前句",()=>SetPracticeLoop(false)),MoreActions(AsyncButton("导入歌词",ImportPracticeLyrics),AsyncButton("修正读音",EditReadings)));toolbar.Spacing=8;actions.Children.Add(toolbar);
         if(current==null){content.Children.Add(Text("先播放一首歌，再来唱一段吧。",20,.7));return;}
         EnsurePracticeDocument();
-        if(lyrics.Count==0){content.Children.Add(Text("这首歌还没有同步歌词\n可以导入 .lrc 文件开始练习",20,.7));return;}
+        if(lyrics.Count==0){
+            if(current.IsVideo){
+                var video=current;
+                var bind=Primary(AsyncButton("绑定歌词",()=>BindVideoLyrics(video)));
+                var empty=Column(Text(video.Name,19,.9),bind);empty.Spacing=16;
+                empty.HorizontalAlignment=HorizontalAlignment.Center;empty.VerticalAlignment=VerticalAlignment.Center;
+                content.Children.Add(empty);
+            }else content.Children.Add(Text("这首歌还没有同步歌词\n可以导入 .lrc 文件开始练习",20,.7));
+            return;
+        }
         var grid=new Grid{ColumnSpacing=28};grid.ColumnDefinitions.Add(new(){Width=new GridLength(1.7,GridUnitType.Star)});grid.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});
         var song=practiceSong=new Grid{RowSpacing=14};song.RowDefinitions.Add(new(){Height=new GridLength(1,GridUnitType.Star)});song.RowDefinitions.Add(new(){Height=GridLength.Auto});
         practicePrevious=Text("",18,.4);practiceNext=Text("",18,.4);ruby=NewPracticeRuby();practiceRubyHost=new Grid{Background=new SolidColorBrush(Color.FromArgb(0,0,0,0))};practiceRubyHost.Children.Add(ruby);practiceTranslationText=Text("",18,.62);practiceRomanText=Text("",17,.65);
@@ -42,7 +51,11 @@ public sealed partial class MainPage
         var previous=ActionButton("‹ 上一句",()=>MovePractice(-1));var next=ActionButton("下一句 ›",()=>MovePractice(1));
         var speed=practiceSpeedControl=new ComboBox{FontFamily=UiFont,MinWidth=100};double[] speeds=[.5,.65,.75,.85,1,1.15,1.25,1.5];foreach(double value in speeds)speed.Items.Add(value.ToString("0.##")+"×");speed.SelectedIndex=4;speed.SelectionChanged+=(_,_)=>{if(speed.SelectedIndex>=0)audio.SetSpeed(speeds[speed.SelectedIndex]);};ToolTipService.SetToolTip(speed,"变速不变调");
         var lead=Choice("句前预备时间",["0 秒","1 秒","2 秒","3 秒"],(int)practiceLead,i=>practiceLead=i);
-        var offset=new NumberBox{FontFamily=UiFont,Value=practiceDocument.Offset,Minimum=-15,Maximum=15,SmallChange=.1,LargeChange=.5,Width=100,SpinButtonPlacementMode=NumberBoxSpinButtonPlacementMode.Compact};offset.ValueChanged+=(_,e)=>{if(!double.IsFinite(e.NewValue))return;practiceDocument.Offset=e.NewValue;if(current!=null)practiceDocument.Save(current);};ToolTipService.SetToolTip(offset,"歌词偏移（秒），正数表示歌词晚出现");
+        var practiceVideo=current;var document=practiceDocument;
+        double offsetLimit=practiceVideo.IsVideo?Math.Max(15,Math.Max(Math.Abs(document.Offset),audio.Duration)):15;
+        var offset=new NumberBox{FontFamily=UiFont,Minimum=-offsetLimit,Maximum=offsetLimit,Value=document.Offset,SmallChange=.1,LargeChange=.5,Width=100,SpinButtonPlacementMode=NumberBoxSpinButtonPlacementMode.Compact};
+        offset.ValueChanged+=(_,e)=>{if(!double.IsFinite(e.NewValue)||current?.Key!=practiceVideo.Key)return;document.Offset=e.NewValue;document.Save(practiceVideo);};
+        ToolTipService.SetToolTip(offset,"歌词偏移（秒），正数表示歌词晚出现");
         Primary(loopButton);var transport=Row(previous,loopButton,next);transport.HorizontalAlignment=HorizontalAlignment.Center;transport.Spacing=10;
         var controls=practiceControls=Column(transport,EqualColumns(LabeledControl("速度 · 保持音高",speed),LabeledControl("句前预备",lead),LabeledControl("歌词偏移 · 秒",offset)));controls.Spacing=18;controls.Margin=new(0,12,0,0);song.Children.Add(controls);Grid.SetRow(controls,1);grid.Children.Add(song);
         practiceLines=new ListView{SelectionMode=ListViewSelectionMode.Single,IsItemClickEnabled=true,ItemsSource=lyrics,ItemTemplate=(DataTemplate)XamlReader.Load("""<DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"><TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="16" Margin="0,12" Opacity="0.75"/></DataTemplate>""")};
@@ -171,6 +184,7 @@ public sealed partial class MainPage
         await Dialog("修正读音",Column(new ScrollViewer{Content=rows,MaxHeight=340,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,HorizontalContentAlignment=HorizontalAlignment.Stretch},hint,Row(save,undo)));
     }
     async Task ImportPracticeLyrics(){
+        if(current?.IsVideo==true){await BindVideoLyrics(current);return;}
         if(current==null)return;
         try{var track=current;int version=loadVersion;var picker=new Windows.Storage.Pickers.FileOpenPicker();WinRT.Interop.InitializeWithWindow.Initialize(picker,WinRT.Interop.WindowNative.GetWindowHandle(App.Main));picker.FileTypeFilter.Add(".lrc");var file=await picker.PickSingleFileAsync();if(file==null||current?.Key!=track.Key)return;var text=await File.ReadAllTextAsync(file.Path);if(version!=loadVersion)return;var parsed=Lyrics.Parse(text);if(parsed.Count==0)throw new IOException("歌词没有有效时间戳");var folder=Path.Combine(Storage.Data,"practice-lyrics");Directory.CreateDirectory(folder);await File.WriteAllTextAsync(Path.Combine(folder,Path.GetFileNameWithoutExtension(PracticeDocument.PathFor(track))+".lrc"),text);lyrics=parsed;practiceReadings=[];practiceSelected=-1;practiceFollow=true;practiceLoop=false;practiceWordSource=new("",[]);ClearLyricTextures();Layout();PrepareTrackReadings();if(page=="practice")await BuildPractice();}catch(Exception e){ShowError(e);}
     }

@@ -34,7 +34,8 @@ const request=require(path.join(lib,'util/request'));
 const modules={};
 for(const name of ['login_qr_key','login_qr_create','login_qr_check','login_status','user_playlist','playlist_detail','song_detail','song_url_v1','lyric','lyric_new','recommend_songs','recommend_resource','likelist','like','playlist_tracks','scrobble','cloudsearch','artist_songs','mv_detail','mv_url','artist_mv','personalized'])modules[name]=require(path.join(lib,'module',name));
 let cookies={},profile=null,qr=null,generation=0;
-const media=new Map();
+const media=require('./media-cache.cjs')();
+const mediaSweep=setInterval(()=>media.prune(),60000);mediaSweep.unref();
 function dpapi(bytes,mode){return Buffer.from(execFileSync('powershell.exe',['-NoProfile','-File',path.join(__dirname,'dpapi.ps1'),'-Mode',mode],{input:Buffer.from(bytes).toString('base64'),encoding:'utf8',windowsHide:true,timeout:10000,stdio:['pipe','pipe','pipe']}).trim(),'base64')}
 try{if(fs.existsSync(cookieFile))cookies=JSON.parse(dpapi(fs.readFileSync(cookieFile),'Unprotect').toString())}catch(_){console.warn('Saved account could not be opened; scan again.');}
 function save(){const encrypted=dpapi(Buffer.from(JSON.stringify(cookies)),'Protect');fs.writeFileSync(cookieFile+'.tmp',encrypted);fs.renameSync(cookieFile+'.tmp',cookieFile)}

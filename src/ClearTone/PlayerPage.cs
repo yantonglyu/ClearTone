@@ -74,6 +74,9 @@ public sealed partial class MainPage
         library.Content=new Border{Width=24,Height=24,CornerRadius=new CornerRadius(12),BorderBrush=new SolidColorBrush(Colors.White),BorderThickness=new Thickness(1.3),Child=new TextBlock{Text="♪",FontSize=18,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center}};
         library.Click+=async(_,_)=>await Library();
         volume.Value=state.Volume;volume.ValueChanged+=(_,e)=>{state.Volume=e.NewValue;audio.Volume(e.NewValue);};var libraryRow=new Grid();libraryRow.Children.Add(library);var v=Row(Text("♪",14,.6),volume);v.HorizontalAlignment=HorizontalAlignment.Right;libraryRow.Children.Add(v);
+        videoPracticeButton.HorizontalAlignment=HorizontalAlignment.Center;videoPracticeButton.Opacity=.8;
+        videoPracticeButton.Click+=async(_,_)=>{if(current is {IsVideo:true} track){if(lyrics.Count>0)await StartVideoPractice(track);else await BindVideoLyrics(track);}};
+        libraryRow.Children.Add(videoPracticeButton);
         seek.AddHandler(PointerPressedEvent,new Microsoft.UI.Xaml.Input.PointerEventHandler((_,_)=>dragging=true),true);seek.AddHandler(PointerReleasedEvent,new Microsoft.UI.Xaml.Input.PointerEventHandler((_,_)=>{if(dragging){SeekAudio(seek.Value);dragging=false;}}),true);seek.KeyUp+=(_,_)=>SeekAudio(seek.Value);
         recordStack=Column(coverBox,heading,artist,seek,times,transport,libraryRow,notice);recordStack.Spacing=7;left.Children.Add(recordStack);body.Children.Add(left);
         right.RowDefinitions.Add(new(){Height=new GridLength(42)});right.RowDefinitions.Add(new(){Height=new GridLength(1,GridUnitType.Star)});Grid.SetRow(lyricCanvas,1);right.Children.Add(lyricCanvas);right.VerticalAlignment=VerticalAlignment.Center;Grid.SetColumn(right,1);body.Children.Add(right);follow.Visibility=Visibility.Collapsed;follow.Width=32;follow.Height=32;follow.Click+=(_,_)=>ReturnToLyrics();var tools=Row(follow,translation,roman);tools.VerticalAlignment=VerticalAlignment.Top;tools.HorizontalAlignment=HorizontalAlignment.Right;translation.Opacity=roman.Opacity=.45;translation.Width=roman.Width=32;translation.Height=roman.Height=32;right.Children.Add(tools);
@@ -138,6 +141,12 @@ public sealed partial class MainPage
         if(t.NetEaseId.Length>0){var d=await service.Call("lyrics",new{id=t.NetEaseId},token);if(version!=loadVersion)return;SetPracticeWordTimeline(d.TryGetProperty("wordTimeline",out var wordTimes)?wordTimes:null);lyrics=Lyrics.Merge(d.GetProperty("lrc").GetString()??"",d.GetProperty("translation").GetString()??"",d.GetProperty("romanization").GetString()??"");}else lyrics=Lyrics.Parse(t.Lrc);
         var localLyrics=Path.Combine(Storage.Data,"practice-lyrics",Path.GetFileNameWithoutExtension(PracticeDocument.PathFor(t))+".lrc");
         if(File.Exists(localLyrics)){var localText=await File.ReadAllTextAsync(localLyrics,token);if(version!=loadVersion)return;SetPracticeWordTimeline(null);lyrics=Lyrics.Parse(localText);}
+        if(t.IsVideo&&File.Exists(BindingPath(t))){
+            var json=await File.ReadAllTextAsync(BindingPath(t),token);
+            if(version!=loadVersion)return;
+            var bound=JsonSerializer.Deserialize<BoundLyrics>(json,Storage.Json);
+            if(bound!=null){lyrics=Lyrics.Merge(bound.Lrc,bound.Translation,bound.Romanization);SetPracticeWordTimeline(bound.Words);}
+        }
         if(version!=loadVersion)return;lyricsLoaded=true;PrepareTrackReadings();active=-1;scrollIndex=-1;ClearLyricTextures();Layout();lyricCanvas.Invalidate();ShowTrackLyricsMotion(version);if(page=="practice")await BuildPractice();
     }catch(OperationCanceledException){}catch(Exception e){if(version==loadVersion){lyricsLoaded=true;Layout();ShowTrackLyricsMotion(version);ShowError(e);}}}
     async Task Analyze(int version){if(analyzing||current==null||current.NetEaseId.Length==0)return;analyzing=true;try{var d=await service.Call("analysis",new{id=current.NetEaseId,queue=audio.Playing,duration=current.FullDuration});if(version==loadVersion){if(d.TryGetProperty("timeline",out var t)&&t.ValueKind==JsonValueKind.Object)timeline=t.Clone();analysisReady=d.GetProperty("state").GetString() is "ready" or "disabled" or "unavailable";}lastAnalysis=DateTime.Now;}catch(Exception e){Storage.Log(e);}finally{analyzing=false;}}
@@ -148,7 +157,9 @@ public sealed partial class MainPage
         if(ready&&current!=null&&!analysisReady&&(DateTime.Now-lastAnalysis).TotalSeconds>2)_=Analyze(loadVersion);
         if(page=="practice")TickPractice();
         if(!visible){StopLyricAnimation();return;}UpdateShell();UpdatePlay();if(page!="now"){StopLyricAnimation();return;}if(!dragging){double value=Math.Min(seek.Maximum,audio.Position);if(seek.Value!=value)seek.Value=value;}SetText(positionText,ShortTime(audio.Position));UpdatePlay();
-        if(audio.Playing&&page=="now"){spectrum=audio.Spectrum();spectrumCanvas.Invalidate();}int next=lyrics.FindLastIndex(l=>l.Time<=audio.Position);if(next!=active){active=next;if(page=="now")lyricCanvas.Invalidate();}
+        if(audio.Playing&&page=="now"){spectrum=audio.Spectrum();spectrumCanvas.Invalidate();}
+        int next=PracticeTiming.AtOrBefore(lyrics,audio.Position-(current?.IsVideo==true?practiceDocument.Offset:0));
+        if(next!=active){active=next;lyricCanvas.Invalidate();}
         if(page=="now"&&++ticks%2==0)UpdateReadings();
         WakeLyricAnimation();
     }
@@ -178,6 +189,7 @@ public sealed partial class MainPage
                 lyricPositions.Add(y);mainHeights.Add(h);translationHeights.Add(th);lyricHeights.Add(h+th+rh+34);y+=h+th+rh+34;}}
         int first=Math.Max(0,lyricPositions.FindLastIndex(p=>p<scrollIndex-center)-1);
         int last=Math.Min(lyrics.Count-1,lyricPositions.FindLastIndex(p=>p<scrollIndex-center+sender.ActualHeight)+1);
+        PruneLyricTextures(first,last,(int)width);
         for(int i=first;i<=last;i++){
             var l=lyrics[i];bool selected=i==active;bool browsing=lyricPressed||DateTime.Now<lyricManualUntil;int distance=browsing?0:Math.Abs(i-active);string key=$"{i}:{selected}:{Math.Min(distance,3)}:{(int)width}";
             if(!lyricTextures.TryGetValue(key,out var texture)){
@@ -186,13 +198,17 @@ public sealed partial class MainPage
                     float yText=6+mainHeights[i];
                     if(translationHeights[i]>0){r.DrawText(l.Translation,new Windows.Foundation.Rect(8,yText+7,width-16,translationHeights[i]),Color.FromArgb(220,255,255,255),translationFormat);yText+=translationHeights[i];}
                     var romanText=PlaybackRomanization(i);if(romanText.Length>0)r.DrawText(romanText,new Windows.Foundation.Rect(8,yText+7,width-16,lyricHeights[i]-mainHeights[i]-translationHeights[i]),Color.FromArgb(220,255,255,255),romanFormat);}
-                texture=new CanvasRenderTarget(sender,width+20,lyricHeights[i]+12,96);using(var r=texture.CreateDrawingSession()){r.Clear(Colors.Transparent);using var blur=new GaussianBlurEffect{Source=raw,BlurAmount=selected?0:Math.Min(4.5f,distance*1.5f),BorderMode=EffectBorderMode.Soft};r.DrawImage(blur);}lyricTextures[key]=texture;if(lyricTextures.Count>56){var old=lyricTextures.Keys.First(k=>k!=key);lyricTextures[old].Dispose();lyricTextures.Remove(old);}
+                texture=new CanvasRenderTarget(sender,width+20,lyricHeights[i]+12,96);using(var r=texture.CreateDrawingSession()){r.Clear(Colors.Transparent);using var blur=new GaussianBlurEffect{Source=raw,BlurAmount=selected?0:Math.Min(4.5f,distance*1.5f),BorderMode=EffectBorderMode.Soft};r.DrawImage(blur);}lyricTextures[key]=texture;TrimLyricTextureBudget(key);
             }
             float y=center+lyricPositions[i]-(float)scrollIndex;float edge=(float)Math.Clamp(Math.Min(y+lyricHeights[i],sender.ActualHeight-y)/100,0,1);ds.DrawImage(texture,new Vector2(0,y),texture.Bounds,(selected?1f:browsing?.65f:.55f)*edge);
         }
     }
+    static readonly System.Net.Http.HttpClient coverClient=new();
     async Task LoadCover(string url,int version){try{
-        using var client=new System.Net.Http.HttpClient();var bytes=url.StartsWith("http")?await client.GetByteArrayAsync(url):await File.ReadAllBytesAsync(url);if(version!=loadVersion)return;
+        if(string.IsNullOrWhiteSpace(url)){if(version==loadVersion)cover.Source=null;return;}
+        var token=trackCancel.Token;
+        var bytes=url.StartsWith("http")?await coverClient.GetByteArrayAsync(url,token):await File.ReadAllBytesAsync(url,token);
+        if(version!=loadVersion)return;
         using var stream=new InMemoryRandomAccessStream();using(var writer=new DataWriter(stream.GetOutputStreamAt(0))){writer.WriteBytes(bytes);await writer.StoreAsync();}stream.Seek(0);var bmp=new BitmapImage{DecodePixelWidth=1024};await bmp.SetSourceAsync(stream);if(version!=loadVersion)return;SetTrackCover(bmp,version);stream.Seek(0);
         using var image=await CanvasBitmap.LoadAsync(CanvasDevice.GetSharedDevice(),stream);using var small=new CanvasRenderTarget(CanvasDevice.GetSharedDevice(),640,400,96);
         using var palette=new CanvasRenderTarget(CanvasDevice.GetSharedDevice(),96,96,96);using(var draw=palette.CreateDrawingSession())draw.DrawImage(image,new Windows.Foundation.Rect(0,0,96,96),image.Bounds);var pixels=palette.GetPixelColors();var buckets=new Dictionary<int,(long r,long g,long b,int count)>();
@@ -205,7 +221,7 @@ public sealed partial class MainPage
         }
         using var target=new CanvasRenderTarget(CanvasDevice.GetSharedDevice(),640,400,96);using(var draw=target.CreateDrawingSession()){using var blur=new GaussianBlurEffect{Source=small,BlurAmount=65,BorderMode=EffectBorderMode.Hard};draw.DrawImage(blur);draw.FillRectangle(0,0,640,400,Color.FromArgb(18,10,12,22));}
         using var result=new InMemoryRandomAccessStream();await target.SaveAsync(result,CanvasBitmapFileFormat.Png);result.Seek(0);var bg=new BitmapImage();await bg.SetSourceAsync(result);if(version!=loadVersion)return;SetTrackBackground(bg,version);SetMotion();
-    }catch(Exception e){Storage.Log(e);}}
+    }catch(OperationCanceledException) when(version!=loadVersion||disposed){}catch(Exception e){Storage.Log(e);}}
     bool motionRunning,motionTimerHooked;Vector2 motionSize;long motionStarted;
     readonly DispatcherTimer motionTimer=new(){Interval=TimeSpan.FromMilliseconds(100)};
     void SetMotion(){
@@ -240,9 +256,10 @@ public sealed partial class MainPage
     void UpdateListening(){try{listening.Checkpoint(Math.Max(0,audio.PlayedSeconds-listeningBaseline));if(ready)_=listening.Pump(accountId);}catch(Exception e){Storage.Log(e);}}
     void EndListening(){try{listening.Checkpoint(Math.Max(0,audio.PlayedSeconds-listeningBaseline),true);listening.Finish();if(ready)_=listening.Pump(accountId);}catch(Exception e){Storage.Log(e);}}
     public async Task PrepareClose(){ResetVideo();trackReady=false;trackLoading=false;++loadVersion;trackCancel.Cancel();StopPracticeMotion();try{await audio.PauseAsync().WaitAsync(TimeSpan.FromMilliseconds(250));}catch{}EndListening();try{await listening.Pump(accountId).WaitAsync(TimeSpan.FromSeconds(5));}catch{} }
-    public void Close(){CloseVideo();CloseArtistMotion();ResetLiveFinale();CloseSongEgg();CloseSystemMedia();StopPracticeMotion();motionTimer.Stop();motionRunning=false;settingsSaveTimer.Stop();Storage.Save(state);CompositionTarget.Rendering-=AnimateLyrics;disposed=true;uiTimer.Stop();saveTimer.Stop();study.Checkpoint();audio.Dispose();service.Stop();ClearLyricTextures();lyricFormats?.Dispose();}
+    public void Close(){microphoneMonitor.Close();CloseVideo();CloseArtistMotion();ResetLiveFinale();CloseSongEgg();CloseSystemMedia();StopPracticeMotion();motionTimer.Stop();motionRunning=false;settingsSaveTimer.Stop();Storage.Save(state);CompositionTarget.Rendering-=AnimateLyrics;disposed=true;uiTimer.Stop();saveTimer.Stop();study.Checkpoint();audio.Dispose();service.Stop();ClearLyricTextures();lyricFormats?.Dispose();}
     async Task RefreshQuote(){try{using var http=new System.Net.Http.HttpClient{Timeout=TimeSpan.FromSeconds(8)};var d=await http.GetFromJsonAsync<JsonElement>("https://v1.hitokoto.cn/?max_length=38");quote.Text=d.GetProperty("hitokoto").GetString();quoteSource.Text="一言  "+d.GetProperty("from").GetString();}catch{quoteSource.Text="一言";}}
 }
+
 
 
 

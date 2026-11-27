@@ -1,4 +1,13 @@
 using ClearTone;
+Assert(BiliFavorites.Parse("12345")==("12345",true),"A bare UID opens an account");
+Assert(BiliFavorites.Parse("https://space.bilibili.com/12345/favlist?fid=22")==("22",false),"An explicit folder takes precedence over UID");
+Assert(BiliFavorites.Parse("https://www.bilibili.com/list/ml22?bvid=BV1234567890")==("22",false),"A video-context link opens its folder");
+Assert(BiliFavorites.Parse("ml22")==("22",false),"Short folder number");
+var timingFixture=Lyrics.Parse("[00:01]one\n[00:01]two\n[00:09]three");
+foreach(double t in new[]{-1d,0,1,1.1,8.99,9,100})
+    Assert(PracticeTiming.AtOrBefore(timingFixture,t)==timingFixture.FindLastIndex(l=>l.Time<=t),"Binary search preserves duplicate and boundary timestamps");
+Assert(PracticeTiming.Current(timingFixture,2.5,11.49)==1,"Video offset delays a line until its adjusted timestamp");
+Assert(PracticeDocument.PathFor(new Track{Bvid="BV1234567890",BiliPage=1})!=PracticeDocument.PathFor(new Track{Bvid="BV1234567890",BiliPage=2}),"Separate bindings for each part");
 void Assert(bool condition,string reason){if(!condition)throw new InvalidOperationException(reason);}
 Assert(ReadingDisplay.Resolve(-1,false)==ReadingDisplay.Off,"Existing disabled annotation stays off");
 Assert(ReadingDisplay.Resolve(-1,true)==ReadingDisplay.Romaji,"Existing enabled romanization stays enabled on upgrade");

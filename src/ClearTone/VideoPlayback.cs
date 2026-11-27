@@ -30,7 +30,9 @@ public sealed partial class MainPage
         videoMorphOrigin=coverBox is {ActualWidth:>0,ActualHeight:>0}?coverBox.TransformToVisual(Root).TransformBounds(new Rect(0,0,coverBox.ActualWidth,coverBox.ActualHeight)):null;
         videoMorphFromVideo=current?.IsVideo??false;
     }
+    readonly Button videoPracticeButton=Icon("\uE720","视频跟唱");
     void SetVideoControls(bool video){
+        videoPracticeButton.Visibility=video?Visibility.Visible:Visibility.Collapsed;
         if(recordStack==null)return;
         // Keep the shared transport but give a video its screen space. Restore all
         // dimensions before ordinary music layout, including compact-window sizing.
