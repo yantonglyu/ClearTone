@@ -3,7 +3,7 @@ param(
   [Parameter(Mandatory=$true)][string]$ISCC,
   [Parameter(Mandatory=$true)][string]$VCRuntime,
   [string]$ReleaseDir=(Join-Path $PSScriptRoot '..\artifacts\release'),
-  [string]$Version='0.2.0'
+  [string]$Version='0.2.1'
 )
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot -Parent

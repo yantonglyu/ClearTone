@@ -4,7 +4,11 @@ Keep this service bound to loopback. Do not expose it through a reverse proxy or
 
 For security-sensitive reports, use GitHub's private vulnerability reporting when available. If unavailable, open a minimal issue asking for a private contact without publishing exploit details or credentials.
 
-## Dependency review: 2026-10-20
+## v0.2.1 dependency check (2026-11-27)
+
+For the locked production Node dependency tree, `npm audit --omit=dev` flagged seven package entries (three high and four moderate), including parent packages affected through their dependencies. The entries cover the NetEase API adapter, basic-ftp, body-parser, follow-redirects, get-uri, node-forge and pac-proxy-agent. Exploitability in ClearTone has not been established for each entry. This playback release retains the tested dependency lockfile.
+
+## Earlier dependency review (2026-10-20)
 
 The lockfile overrides `basic-ftp` to 6.2.3, addressing [GHSA-c475-qrg2-pj4r](https://github.com/advisories/GHSA-c475-qrg2-pj4r). The application does not expose FTP or PAC configuration.
 

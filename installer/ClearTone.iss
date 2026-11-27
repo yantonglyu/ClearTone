@@ -5,11 +5,11 @@
   #error Supply /DReleaseDir=absolute-output-directory
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.2.0"
+  #define AppVersion "0.2.1"
 #endif
 
 [Setup]
-AppId={{95D7C18A-1DB0-4F64-8A84-4314BA71F0DB}
+AppId={code:InstallId}
 AppName=澄音 · ClearTone
 AppVersion={#AppVersion}
 AppPublisher=yantonglyu
@@ -39,6 +39,7 @@ LicenseFile={#Bundle}\INSTALL-LICENSE.txt
 DisableDirPage=no
 ShowLanguageDialog=no
 LanguageDetectionMethod=none
+UsePreviousLanguage=no
 Compression=lzma2
 SolidCompression=yes
 CloseApplications=no
@@ -96,6 +97,14 @@ Filename: "{app}\app\ClearTone.exe"; Description: "{cm:LaunchProgram,ClearTone}"
 function IsTestInstall: Boolean;
 begin
   Result := ExpandConstant('{param:TESTINSTALL|0}') = '1';
+end;
+
+function InstallId(Param: String): String;
+begin
+  if IsTestInstall then
+    Result := '{95D7C18A-1DB0-4F64-8A84-4314BA71F0DB}-test'
+  else
+    Result := '{95D7C18A-1DB0-4F64-8A84-4314BA71F0DB}';
 end;
 
 procedure InitializeWizard;

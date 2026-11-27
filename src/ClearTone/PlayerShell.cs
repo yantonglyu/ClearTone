@@ -32,7 +32,12 @@ public sealed partial class MainPage
     }
     void PlayAudio(){if(trackReady&&!disposed&&!LiveLocked)audio.Play();}
     async void SeekAudio(double seconds){if(trackReady&&!disposed&&!LiveLocked){int version=loadVersion;eggClock.Seek();await audio.Seek(seconds);if(!disposed&&version==loadVersion)SyncVideo(true);}}
-    void TogglePlayback(){if(LiveLocked)return;if(audio.Playing)audio.Pause();else PlayAudio();UpdatePlay();}
+    void PlayOrRetry(){
+        if(disposed||LiveLocked||trackLoading)return;
+        if(CanRetryTrack){_=LoadTrack(state.Index,true);return;}
+        PlayAudio();
+    }
+    void TogglePlayback(){if(LiveLocked)return;if(audio.Playing)audio.Pause();else PlayOrRetry();UpdatePlay();}
     void PaintNavigation(){foreach(var pair in navigationButtons){pair.Value.Background=new SolidColorBrush(pair.Key==page?Color.FromArgb(48,231,169,186):Color.FromArgb(0,255,255,255));pair.Value.Opacity=pair.Key==page?1:.65;}}
     async Task NavigateCore(string target){
         if(target is not ("now" or "discover" or "library" or "practice"))return;

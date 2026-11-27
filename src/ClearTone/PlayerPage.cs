@@ -121,7 +121,9 @@ public sealed partial class MainPage
     void ShowError(Exception e){Storage.Log(e);notice.Text=e.Message;_=DismissNotice(e.Message);}
     async Task DismissNotice(string text){await Task.Delay(7000);if(notice.Text==text)notice.Text="";}
     bool? lastPlaying;
-    void UpdatePlay(){play.IsEnabled=trackReady;if(miniPlay!=null)miniPlay.IsEnabled=trackReady;bool playing=audio.Playing;if(lastPlaying==playing)return;lastPlaying=playing;((FontIcon)play.Content).Glyph=playing?"\uE769":"\uE768";if(!playing)spectrumCanvas.Invalidate();}
+    bool CanRetryTrack => ready && !disposed && !trackLoading && !trackReady && current!=null
+        && state.Index>=0 && state.Index<state.Queue.Count && state.Queue[state.Index].Key==current.Key;
+    void UpdatePlay(){play.IsEnabled=trackReady||CanRetryTrack;if(miniPlay!=null)miniPlay.IsEnabled=play.IsEnabled;bool playing=audio.Playing;if(lastPlaying==playing)return;lastPlaying=playing;((FontIcon)play.Content).Glyph=playing?"\uE769":"\uE768";if(!playing)spectrumCanvas.Invalidate();}
     async Task Next(int d){if(LiveLocked||state.Queue.Count==0)return;int i=state.RepeatOne?state.Index:state.Shuffle?Random.Shared.Next(state.Queue.Count):(state.Index+d+state.Queue.Count)%state.Queue.Count;await LoadTrack(i,true);}
     async Task LoadTrack(int index,bool start){
         CaptureVideoMorph();ResetLiveFinale();eggClock.Reset();
@@ -133,8 +135,15 @@ public sealed partial class MainPage
             var t=await service.Refresh(current,token);if(version!=loadVersion)return;bool artistChanged=current.Artist!=t.Artist;current=t;state.Queue[index]=t;Storage.Save(state);title.Text=t.Name;artist.Text=t.Artist;
             if(artistChanged)ShowTrackMotion(version,t);PrepareVideo(t,version);
             _=LoadCover(t.Cover,version);_=LoadLyrics(t,version,token);_=UpdateLike(version);
+            bool trialOnly=false;
+            if(t.NetEaseId.Length>0 && !t.IsVideo){
+                var rights=await service.Call("track",new{id=t.NetEaseId},token);
+                if(version!=loadVersion)return;
+                if(!rights.GetProperty("available").GetBoolean())throw new IOException("当前账号没有这首歌的可用音源，请在网易云查看播放权限。");
+                trialOnly=rights.TryGetProperty("trial",out var trial)&&trial.GetBoolean();
+            }
             ApplyAudioProcessing();if(DsdDecoder.IsDsd(t.Url))notice.Text="正在准备 DSD 兼容播放…";var playPath=await DsdDecoder.Resolve(t.Url,token);if(version!=loadVersion)return;await audio.Load(playPath,state);if(version!=loadVersion)return;trackReady=true;trackLoading=false;notice.Text=audio.OutputNotice;listeningBaseline=0;listening.Begin(accountId,t.NetEaseId,state.PlaylistId);seek.Maximum=Math.Max(1,audio.Duration);durationText.Text=ShortTime(audio.Duration);if(start){audio.Play();shelf.Remember(t);}UpdatePlay();_=Analyze(version);
-            if(t.NetEaseId.Length>0){var rights=await service.Call("track",new{id=t.NetEaseId},token);if(version==loadVersion&&rights.TryGetProperty("trial",out var trial)&&trial.GetBoolean())notice.Text="当前账号仅可试听";}
+            if(trialOnly)notice.Text="当前账号仅可试听";
         }catch(OperationCanceledException){RestoreTrackMotion(version);}catch(Exception e){if(version==loadVersion){RestoreTrackMotion(version);ResetVideo();ShowError(e);}}finally{if(version==loadVersion){trackLoading=false;UpdatePlay();UpdateSystemMedia();}}
     }
     async Task LoadLyrics(Track t,int version,CancellationToken token){try{SetPracticeWordTimeline(null);

@@ -64,7 +64,7 @@ public sealed partial class MainPage
                         case "study":ToggleStudy();break;
                         case "study-finish":FinishStudy();break;
                         case "pause":audio.Pause();break;
-                        case "play":audio.Play();break;
+                        case "play":PlayOrRetry();break;
                         case "load-first":if(state.Queue.Count>0)await LoadTrack(0,false);break;
                         case "load-index":int testIndex=command.GetProperty("index").GetInt32();if(testIndex>=0&&testIndex<state.Queue.Count)await LoadTrack(testIndex,false);break;
                         case "seek":SeekAudio(command.GetProperty("seconds").GetDouble());break;

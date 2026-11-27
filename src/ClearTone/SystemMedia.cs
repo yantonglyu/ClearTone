@@ -36,7 +36,7 @@ public sealed partial class MainPage
         DispatcherQueue.TryEnqueue(async()=>{
             if(disposed||LiveLocked||systemMediaBusy)return;systemMediaBusy=true;
             try{switch(args.Button){
-                case SystemMediaTransportControlsButton.Play:PlayAudio();break;
+                case SystemMediaTransportControlsButton.Play:PlayOrRetry();break;
                 case SystemMediaTransportControlsButton.Pause:audio.Pause();break;
                 case SystemMediaTransportControlsButton.Next:await Next(1);break;
                 case SystemMediaTransportControlsButton.Previous:await Next(-1);break;
@@ -49,7 +49,7 @@ public sealed partial class MainPage
     void UpdateSystemMedia(){
         if(systemMedia==null||disposed)return;
         try{
-            systemMedia.IsPlayEnabled=trackReady;
+            systemMedia.IsPlayEnabled=trackReady||CanRetryTrack;
             var status=current==null?MediaPlaybackStatus.Closed:trackLoading?MediaPlaybackStatus.Changing:!trackReady?MediaPlaybackStatus.Stopped:audio.Playing?MediaPlaybackStatus.Playing:MediaPlaybackStatus.Paused;
             if(systemMediaStatus!=status){systemMedia.PlaybackStatus=status;systemMediaStatus=status;}
             string track=current?.Key??"";

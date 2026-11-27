@@ -43,14 +43,64 @@ function mergeCookies(list){for(const raw of list||[]){const first=String(raw).s
 async function call(name,params={}){const gen=generation;const result=await modules[name]({...params,cookie:{...cookies},timeout:12000,randomCNIP:false,unblock:'false'},request);if(gen!==generation)throw Error('Account changed');mergeCookies(result.cookie);return result.body}
 function identifier(value){if(!/^\d{1,20}$/.test(String(value)))throw Error('Invalid ID');return String(value)}
 function safeImage(src){try{const u=new URL(src);return u.protocol==='https:'||u.protocol==='http:'?u.href.replace(/^http:/,'https:'):''}catch(_){return ''}}
-async function status(){if(!cookies.MUSIC_U){profile=null;return {loggedIn:false}}const result=await call('login_status');const data=result.data||result;if(!data.profile?.userId){profile=null;cookies={};return {loggedIn:false,expired:true}}profile={id:data.profile.userId,name:data.profile.nickname,avatar:safeImage(data.profile.avatarUrl)};return {loggedIn:true,profile}}
-async function requireLogin(){if(!profile){const s=await status();if(!s.loggedIn){const e=Error('请先扫码登录网易云。');e.status=401;throw e}}}
+function expiredSession(){
+ generation++;profile=null;cookies={};media.clear();formatCache.clear();
+ return {loggedIn:false,expired:true};
+}
+function loginError(expired){
+ const error=Error(expired?'网易云登录已过期，请重新扫码。':'请先扫码登录网易云。');
+ error.status=401;
+ return error;
+}
+async function status(){
+ if(!cookies.MUSIC_U){profile=null;return {loggedIn:false};}
+ const gen=generation;
+ let result;
+ try{result=await call('login_status');}
+ catch(error){
+  if(gen===generation&&[301,401].includes(Number(error.body?.code)))return expiredSession();
+  throw error;
+ }
+ const data=result.data||result;
+ if([301,401].includes(Number(data.code))||(data.code===200&&data.profile===null))return expiredSession();
+ if(!data.profile?.userId)throw Error('账号状态暂时无法确认');
+ profile={id:data.profile.userId,name:data.profile.nickname,avatar:safeImage(data.profile.avatarUrl)};
+ return {loggedIn:true,profile};
+}
+async function requireLogin(){if(!profile){const s=await status();if(!s.loggedIn)throw loginError(s.expired);}}
 const listeningSync=require('./listening-sync.cjs')({directory:accountDir,call,requireLogin,getProfile:()=>profile});
 function song(item){return {artistId:String((item.ar||item.artists||[])[0]?.id||''),name:item.name,artist:(item.ar||item.artists||[]).map(a=>a.name).join(' / '),cover:safeImage((item.al||item.album)?.picUrl),url:base+'/media?id='+item.id+'&token='+token,lrc:base+'/lyrics?id='+item.id+'&token='+token,type:'netease',netEaseId:String(item.id),fullDuration:Number(item.dt||item.duration||0)/1000}}
 const searchCatalog=require('./search-catalog.cjs')({call,song});
 const artistCatalog=require('./artist-catalog.cjs')({call,safeImage});
 const wordLyrics=require('./word-lyrics.cjs');
-async function resolveMedia(id){const existing=media.get(id);if(existing&&existing.expires>Date.now())return existing;const body=await call('song_url_v1',{id,level:'standard',crypto:'eapi'});const data=body.data?.[0];if(!data)throw Error('音源暂不可用');const result={url:data.url,trial:!!data.freeTrialInfo,trialSeconds:data.freeTrialInfo?(data.freeTrialInfo.end-data.freeTrialInfo.start):null,available:!!data.url,expires:Date.now()+Math.max(10,Math.min(Number(data.expi)||120,120)-5)*1000};media.set(id,result);return result}
+// This service runs with the ClearTone Windows app. Identify it using its own product name.
+const playbackUserAgent=`ClearTone/0.2.1 (Windows; ${process.arch})`;
+async function resolveMedia(id){
+ const existing=media.get(id);
+ if(existing&&existing.expires>Date.now())return existing;
+ let body;
+ try{
+  body=await call('song_url_v1',{id,level:'standard',crypto:'eapi',ua:playbackUserAgent});
+ }catch(error){
+  // A cached profile may outlive the login. Check it before classifying a playback denial.
+  const code=Number(error.body?.code);
+  if([301,401,-460].includes(code)){
+   const session=await status();
+   if(!session.loggedIn)throw loginError(true);
+  }
+  if(code===-460){
+   const blocked=new Error('网易云限制了本次音源请求（-460），请稍后重试。');
+   blocked.publicMessage=blocked.message;
+   blocked.status=429;
+   throw blocked;
+  }
+  throw error;
+ }
+ const data=body.data?.[0];
+ if(!data)throw Error('音源暂不可用');
+ const result={url:data.url,trial:!!data.freeTrialInfo,trialSeconds:data.freeTrialInfo?(data.freeTrialInfo.end-data.freeTrialInfo.start):null,available:!!data.url,expires:Date.now()+Math.max(10,Math.min(Number(data.expi)||120,120)-5)*1000};
+ media.set(id,result);return result;
+}
 function reply(res,status,body,type='application/json; charset=utf-8'){res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(type.startsWith('application/json')?JSON.stringify(body):body)}
 async function handle(req,res){
  if(req.headers.host!=='127.0.0.1:'+port)return reply(res,403,{error:'Local host required'});
@@ -110,7 +160,10 @@ async function handle(req,res){
    case '/api/daily':{await requireLogin();const body=await call('recommend_songs');const tracks=body.data?.dailySongs||body.recommend;if(!Array.isArray(tracks))throw Error('Daily recommendations unavailable');return reply(res,200,{name:'每日推荐',tracks:tracks.map(song)})}
    case '/api/recommendations':{await requireLogin();const body=await call('recommend_resource');if(!Array.isArray(body.recommend))throw Error('Recommendations unavailable');return reply(res,200,{items:body.recommend.map(p=>({id:String(p.id),name:p.name,cover:safeImage(p.picUrl||p.coverImgUrl),count:p.trackCount,reason:p.copywriter||'为你推荐'})),more:false})}
    case '/api/lyrics':return reply(res,200,await wordLyrics.load(identifier(input.id),call));
-   case '/api/native-track':{await requireLogin();const id=identifier(input.id);return reply(res,200,{track:await nativeTrack(id,input.metadata,{call,song})})}
+   case '/api/native-track':{
+    await requireLogin();const id=identifier(input.id);
+    return reply(res,200,{track:await nativeTrack(id,input.metadata,{call,song})});
+   }
    case '/api/track':{await requireLogin();const data=await resolveMedia(identifier(input.id));return reply(res,200,{trial:data.trial,trialSeconds:data.trialSeconds,available:data.available})}
    case '/api/analysis':{await requireLogin();return reply(res,200,analysis.status(identifier(input.id),input.queue===true,Number(input.duration)||0))}
    case '/api/audio-info':{await requireLogin();return reply(res,200,await audioInfo(identifier(input.id)))}

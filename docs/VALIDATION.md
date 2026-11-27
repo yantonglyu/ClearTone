@@ -1,5 +1,15 @@
 # Validation
 
+## v0.2.1 Windows x64 installer (2026-11-27)
+
+- All 45 service tests and the native core test suite passed. In a separate playback regression check, simulated upstream responses exercised the Windows client identifier, retry after a temporary refusal and detection of an expired login.
+- Installed from the release executable in a separate per-user test installation. SHA-256 matched the clean build for all 6,786 application payload files. On first launch with a fresh profile the app was signed out, with an empty queue and zero accumulated study time.
+- Played a generated 44.1 kHz WAV in the installed app. Checked seeking, pause, lyric browsing and follow, focus and rest transitions, and saved study time. Pausing and seeking did not add listening time.
+- Reinstalled the same version over the test installation, then uninstalled it. The external synthetic queue and study state retained the same SHA-256 across both operations.
+- Validation used an existing Windows x64 machine. A fresh Windows OS installation and the optional model environment were outside this release test. See [SECURITY.md](../SECURITY.md) for the dependency review.
+
+## Earlier validation
+
 Validated on Windows x64, 2026-10-20.
 
 ## Completed
